@@ -1,0 +1,87 @@
+/*
+ * 后台配置页面样式
+ */
+
+.neditor-logo {
+    float: left;
+    height: 40px;
+    line-height: 40px;
+    font-weight: bold;
+    border-bottom: 1px solid #e6e6e6;
+    margin-left: 10px;
+    padding-right: 10px;
+}
+
+.neditor-logo::before {
+    content: '';
+    display: inline-block;
+    height: 40px;
+    width: 40px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 35px 35px;
+    vertical-align: middle;
+}
+
+table.shortcuts th {
+    text-align: center;
+}
+
+table.shortcuts th,
+table.shortcuts td {
+    line-height: 175%;
+    padding: 0 10px;
+}
+
+.about {
+    text-align: center;
+}
+
+.layui-btn,
+.layui-form-select dl dd.layui-this {
+    background-color: #0099FF;
+}
+
+.layui-form-radio>i:hover,
+.layui-form-radioed>i {
+    color: #0099FF;
+}
+
+/*From Fixed*/
+.layui-form-label {
+    width: 100px;
+}
+
+/*以下为了适应ZBP后台自带的admin2.css*/
+* {
+    box-sizing: content-box
+}
+
+input[readonly],
+input[readonly]:hover {
+    background: #FFFFFF;
+    border: solid 1px #D2D2D2;
+    cursor: pointer;
+    color: #000000;
+}
+
+#customtoolbar_text {
+    font-size: 18px;
+    line-height: 1.5;
+    height: 230px;
+}
+
+#addCsp,
+.del-csp {
+    position: absolute;
+    width: 35px;
+    height: 35px;
+    background-position: center center;
+    background-repeat: no-repeat;
+    cursor: pointer;
+}
+
+.added-csp {
+    margin-left: 130px;
+    margin-top: 10px;
+}

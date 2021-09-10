@@ -1,0 +1,5 @@
+.history
+.vscode
+vendor
+*.code-workspace
+*.lnk

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<plugin version="php">
+  <id>Neditor</id>
+  <name>Neditor编辑器</name>
+  <url>https://bbs.zblogcn.com/thread-93609-1-1.html</url>
+  <note>基于 UEditor 的一个更为美观、强大的现代化编辑器。</note>
+  <description>Neditor 是基于 UEditor 的一个更为美观、强大的现代化编辑器。</description>
+  <path>main.php#tabs=editor</path>
+  <include>include.php</include>
+  <level>1</level>
+  <author>
+    <name>心扬</name>
+    <email>chrishyze@163.com</email>
+    <url>https://app.zblogcn.com/?auth=2ffbff0a-1207-4362-89fb-d9a780125e0a</url>
+  </author>
+  <source>
+  <name></name>
+  <email></email>
+  <url></url>
+  </source>
+  <adapted>162130</adapted>
+  <version>2.35</version>
+  <pubdate>2017-06-07</pubdate>
+  <modified>2020-07-31</modified>
+  <price>0</price>
+  <phpver>5.5</phpver>
+  <advanced>
+    <dependency></dependency>
+    <rewritefunctions></rewritefunctions>
+    <existsfunctions></existsfunctions>
+    <conflict>UEditor|markdown|my_tinymce|KindEditor|Editormd|iceEditor</conflict>
+  </advanced>
+  <sidebars>
+    <sidebar1></sidebar1>
+    <sidebar2></sidebar2>
+    <sidebar3></sidebar3>
+    <sidebar4></sidebar4>
+    <sidebar5></sidebar5>
+  </sidebars>
+</plugin>
