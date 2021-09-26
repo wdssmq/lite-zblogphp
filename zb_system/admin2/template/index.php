@@ -20,6 +20,7 @@
   <!-- <p>action: {$action}</p> -->
   {template:admin_top}
   {template:admin_left}
+  {template:admin_main}
   {$footer}
 </body>
 

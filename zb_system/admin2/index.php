@@ -6,7 +6,7 @@ require './admin2_function.php';
 $zbp->Load();
 
 $zbp->action = GetVars('act', 'GET', "admin");
-$zbp->title = GetAdminTitle($zbp->action, $lang);
+list($zbp->title, $ActionInfo) = GetActionInfo($zbp->action, $lang);
 
 // $zbp->ismanage: true
 // $zbp->option['ZC_MANAGE_UI']: 2
@@ -27,6 +27,7 @@ if ($zbp->cache->success_updated_app !== '') {
 
 $zbp->template_admin->SetTags("title", $zbp->title);
 $zbp->template_admin->SetTags("action", $zbp->action);
+$zbp->template_admin->SetTags("main", $ActionInfo);
 $zbp->template_admin->Display("index");
 
 foreach ($GLOBALS['hooks']['Filter_Plugin_Admin_End'] as $fpname => &$fpsignal) {
