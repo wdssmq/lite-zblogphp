@@ -1481,7 +1481,7 @@ function SaveConfig()
 
     $zbp->option['ZC_BLOG_VERSION'] = ZC_BLOG_VERSION;
     $zbp->option['ZC_BLOG_NAME'] = GetVars('blogtitle', 'POST');
-    $zbp->option['ZC_USING_PLUGIN_LIST'] = 'AppCentre|UEditor|Totoro|LinksManage';
+    $zbp->option['ZC_USING_PLUGIN_LIST'] = 'AppCentre|Neditor';
 
     $zbp->option['ZC_BLOG_THEME'] = SplitAndGet(GetVars('blogtheme', 'POST'), '|', 0);
     $zbp->option['ZC_BLOG_CSS'] = SplitAndGet(GetVars('blogtheme', 'POST'), '|', 1);
