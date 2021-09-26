@@ -1,6 +1,5 @@
 <?php
 require '../function/c_system_base.php';
-require '../function/c_system_admin.php';
 require './admin2_function.php';
 
 $zbp->Load();

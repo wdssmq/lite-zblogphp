@@ -1,4 +1,10 @@
 <?php
+if (!defined('ZBP_PATH')) {
+  exit('Access denied');
+}
+require ZBP_PATH . 'zb_system/function/c_system_admin_function.php';
+
+$zbp->ismanage = true;
 
 function GetActionInfo($action, $lang)
 {
