@@ -23,7 +23,7 @@ if (!$zbp->CheckRights($zbp->action)) {
 }
 
 if ($zbp->option['ZC_MANAGE_UI'] !=1){
-  Redirect("../admin2/");
+  Redirect("../admin2/?act={$zbp->action}");
 }
 
 foreach ($GLOBALS['hooks']['Filter_Plugin_Admin_Begin'] as $fpname => &$fpsignal) {
