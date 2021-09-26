@@ -1,5 +1,10 @@
+#
 .history
 .vscode
 vendor
+#
 *.code-workspace
 *.lnk
+#
+/zb_users/c_option.php
+/zb_users/cache/compiled
