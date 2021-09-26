@@ -111,6 +111,7 @@ return array(
   // '--------后台管理--------
   'ZC_MANAGE_COUNT' => 50,
   'ZC_MANAGE_ORDER' => 'log_PostTime',
+  'ZC_MANAGE_UI' => 1,
 
   // '--------表情相关--------
   'ZC_EMOTICONS_FILENAME' => 'face',

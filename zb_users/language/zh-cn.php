@@ -133,6 +133,7 @@ return array(
         'pagebar_count'                     => '翻页条显示翻页的数量',
         'search_count'                      => '允许搜索返回文章的最大数量',
         'manage_count'                      => '后台每页文章显示数量',
+        'manage_ui'                         => '默认后台 UI',
         'comment_turnoff'                   => '关闭评论功能',
         'comment_reverse_order'             => '启用评论倒序输出',
         'comments_display_count'            => '每页输出评论数量',
