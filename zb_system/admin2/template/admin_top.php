@@ -1,7 +1,7 @@
 <?php die(); ?>
 <header class="header">
   <div class="logo">
-    <a href="{$host}" title="{htmlspecialchars($blogname)}" target="_blank"><img src="{$host}zb_system/image/admin/none.gif" alt="Z-Blog" /></a>
+    <a href="{$host}" title="{htmlspecialchars($name)}" target="_blank"><img src="{$host}zb_system/image/admin/none.gif" alt="Z-Blog" /></a>
   </div>
   <div class="user">
     <a href="{$host}zb_system/cmd.php?act=MemberEdt&amp;id={$zbp->user->ID}" title="{$lang['msg']['edit']}"><img src="{$zbp->user->Avatar}" width="40" height="40" id="avatar" alt="Avatar" /></a>

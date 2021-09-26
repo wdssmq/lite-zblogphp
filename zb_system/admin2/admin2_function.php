@@ -2,7 +2,7 @@
 
 function GetActionInfo($action, $lang)
 {
-  $more = (object)array();
+  $more = (object)array("SubMenu" => "", "TopMenu" => "", "LeftMenu" => "");
   switch ($action) {
     case 'ArticleMng':
       // $admin_function = 'Admin_ArticleMng';
