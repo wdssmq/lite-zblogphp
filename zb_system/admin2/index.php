@@ -20,6 +20,11 @@ foreach ($GLOBALS['hooks']['Filter_Plugin_Admin_Begin'] as $fpname => &$fpsignal
   $fpname();
 }
 
+if ($zbp->cache->success_updated_app !== '') {
+  $script =  $bloghost . 'zb_system/cmd.php?act=misc&type=updatedapp';
+  $zbp->footer .= "<script src=\"{$script}\"></script>";
+}
+
 $zbp->template_admin->SetTags("title", $zbp->title);
 $zbp->template_admin->SetTags("action", $zbp->action);
 $zbp->template_admin->Display("index");
