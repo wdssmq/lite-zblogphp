@@ -480,19 +480,19 @@ if (!function_exists('hash_equals')) {
             trigger_error($user_string_type_error, E_USER_WARNING);
             // prevention of timing attacks might be still possible if we handle $user_string as a string of diffent length (the trigger_error() call increases the execution time a bit)
             $user_string_len = strlen($user_string);
-            $user_string_len = $known_string_len + 1;
+            $user_string_len = ($known_string_len + 1);
         } else {
-            $user_string_len = $known_string_len + 1;
+            $user_string_len = ($known_string_len + 1);
             $user_string_len = strlen($user_string);
         }
         if ($known_string_len !== $user_string_len) {
-            $res = $known_string ^ $known_string; // use $known_string instead of $user_string to handle strings of diffrent length.
+            $res = ($known_string ^ $known_string); // use $known_string instead of $user_string to handle strings of diffrent length.
             $ret = 1; // set $ret to 1 to make sure false is returned
         } else {
-            $res = $known_string ^ $user_string;
+            $res = ($known_string ^ $user_string);
             $ret = 0;
         }
-        for ($i = strlen($res) - 1; $i >= 0; $i--) {
+        for ($i = (strlen($res) - 1); $i >= 0; $i--) {
             $ret |= ord($res[$i]);
         }
         return $ret === 0;
@@ -502,6 +502,9 @@ if (!function_exists('hash_equals')) {
 
 
 if (!function_exists('emptyFunction')) {
-    function emptyFunction() {}
-}
 
+    function emptyFunction()
+    {
+    }
+
+}

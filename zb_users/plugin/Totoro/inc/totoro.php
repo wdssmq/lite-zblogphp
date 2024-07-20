@@ -63,8 +63,8 @@ class Totoro_Class
 
         if ($this->config_array['BUILD_CONFIG']['AUTOBANURL']) {
             preg_match_all($regex, $content, $matches);
-            if (substr($black_list, strlen($black_list) - 1, 1) == '|') {
-                $black_list = substr($black_list, 0, strlen($black_list) - 1);
+            if (substr($black_list, (strlen($black_list) - 1), 1) == '|') {
+                $black_list = substr($black_list, 0, (strlen($black_list) - 1));
             }
 
             foreach ($matches[0] as $value) {
@@ -150,16 +150,16 @@ class Totoro_Class
             $this->get_score($comment);
             if ($this->sv >= $this->config_array['SV_SETTING']['SV_THRESHOLD']['VALUE']) {
                 if ($this->sv < $this->config_array['SV_SETTING']['SV_THRESHOLD2']['VALUE']
-                    ||
-                    $this->config_array['SV_SETTING']['SV_THRESHOLD2']['VALUE'] <= 0
+                    
+                    || $this->config_array['SV_SETTING']['SV_THRESHOLD2']['VALUE'] <= 0
                 ) {
                     $comment->IsChecking = true;
-                    $zbp->Config('Totoro')->CHECK_INT = (int) $zbp->Config('Totoro')->CHECK_INT + 1;
+                    $zbp->Config('Totoro')->CHECK_INT = ((int) $zbp->Config('Totoro')->CHECK_INT + 1);
                     $zbp->SaveConfig('Totoro');
                     $this->filter_ip($comment->IP, false);
                 } elseif ($this->config_array['SV_SETTING']['SV_THRESHOLD2']['VALUE'] <= $this->sv) {
                     $comment->IsThrow = true;
-                    $zbp->Config('Totoro')->THROW_INT = (int) $zbp->Config('Totoro')->THROW_INT + 1;
+                    $zbp->Config('Totoro')->THROW_INT = ((int) $zbp->Config('Totoro')->THROW_INT + 1);
                     $zbp->SaveConfig('Totoro');
                     $this->filter_ip($comment->IP, true);
                 }
@@ -189,11 +189,11 @@ class Totoro_Class
     public function check_ip($ip)
     {
         //如果是ipv6，就跳过
-        if(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false){
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
             return false;
         }
         //如果是ipv4的内网，就跳过
-        if(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) === false){
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE) === false) {
             return false;
         }
         $ip = ip2long($ip);
@@ -281,7 +281,7 @@ class Totoro_Class
             }
         }
 
-        $zbp->Config('Totoro')->CHECK_INT = (int) $zbp->Config('Totoro')->CHECK_INT + $foundComment;
+        $zbp->Config('Totoro')->CHECK_INT = ((int) $zbp->Config('Totoro')->CHECK_INT + $foundComment);
         $zbp->SaveConfig('Totoro');
 
         if (function_exists('CountCommentNums')) {
