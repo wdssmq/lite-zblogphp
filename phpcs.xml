@@ -98,11 +98,11 @@
 			<property name="ignoreNewlines" value="true" />
 		</properties>
 	</rule>
-	<rule ref="Squiz.WhiteSpace.OperatorSpacing">
+	<!-- <rule ref="Squiz.WhiteSpace.OperatorSpacing">
 		<properties>
 			<property name="spacing" value="1" />
 		</properties>
-	</rule>
+	</rule> -->
 	<rule ref="Squiz.WhiteSpace.FunctionSpacing">
 		<properties>
 			<property name="spacing" value="1" />
