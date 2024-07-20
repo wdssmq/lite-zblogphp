@@ -20,7 +20,9 @@ class Database__SQLite implements Database__Interface
      */
     public $dbpre = null;
 
-    private $db = null; //数据库连接实例
+    protected $db = null; //数据库连接实例
+
+    private $isconnected = false; //是否已打开连接
 
     /**
      * @var string|null 数据库名
@@ -67,11 +69,15 @@ class Database__SQLite implements Database__Interface
      */
     public function Open($array)
     {
+        if ($this->isconnected) {
+            return true;
+        }
         if ($this->db = sqlite_open($array[0], 0666, $sqliteerror)) {
             $this->dbpre = $array[1];
             $this->dbname = $array[0];
             $this->version = sqlite_libversion();
 
+            $this->isconnected = true;
             return true;
         } else {
             return false;
@@ -83,7 +89,11 @@ class Database__SQLite implements Database__Interface
      */
     public function Close()
     {
+        if (!$this->isconnected) {
+            return;
+        }
         sqlite_close($this->db);
+        $this->isconnected = false;
     }
 
     /**
@@ -98,15 +108,18 @@ class Database__SQLite implements Database__Interface
 
     public function QueryMulti($s)
     {
+        $result = false;
         //$a=explode(';',str_replace('%pre%', $this->dbpre, $s));
         $a = explode(';', $s);
         foreach ($a as $s) {
             $s = trim($s);
             if ($s != '') {
-                sqlite_query($this->db, $this->sql->Filter($s));
+                $result = sqlite_query($this->db, $this->sql->Filter($s));
                 $this->LogsError();
             }
         }
+
+        return $result;
     }
 
     /**
@@ -139,7 +152,7 @@ class Database__SQLite implements Database__Interface
     /**
      * @param $query
      *
-     * @return SQLiteResult
+     * @return mixed
      */
     public function Update($query)
     {
@@ -152,7 +165,7 @@ class Database__SQLite implements Database__Interface
     /**
      * @param $query
      *
-     * @return SQLiteResult
+     * @return mixed
      */
     public function Delete($query)
     {
@@ -177,6 +190,14 @@ class Database__SQLite implements Database__Interface
     }
 
     /**
+     * @return int
+     */
+    public function GetInsertId()
+    {
+        return sqlite_last_insert_rowid($this->db);
+    }
+
+    /**
      * @param $table
      * @param $datainfo
      */
@@ -190,6 +211,7 @@ class Database__SQLite implements Database__Interface
      */
     public function DelTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $this->QueryMulit($this->sql->DelTable($table));
     }
 
@@ -200,6 +222,7 @@ class Database__SQLite implements Database__Interface
      */
     public function ExistTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $a = $this->Query($this->sql->ExistTable($table));
         if (!is_array($a)) {
             return false;
@@ -218,7 +241,7 @@ class Database__SQLite implements Database__Interface
         }
     }
 
-    private function LogsError()
+    protected function LogsError()
     {
         $e = sqlite_last_error($this->db);
         if ($e != 0) {
@@ -231,7 +254,7 @@ class Database__SQLite implements Database__Interface
      *
      * @param string $query 指令
      *
-     * @return bool
+     * @return array
      */
     public function Transaction($query)
     {
@@ -249,9 +272,9 @@ class Database__SQLite implements Database__Interface
     public function ExistColumn($table, $field)
     {
         $r = null;
-        ZBlogException::SuspendErrorHook();
+        ZbpErrorControl::SuspendErrorHook();
         $r = @$this->Query("PRAGMA table_info([$table])");
-        ZBlogException::ResumeErrorHook();
+        ZbpErrorControl::ResumeErrorHook();
         $r = serialize($r);
         if (stripos($r, '"' . $field . '"') !== false) {
             return true;

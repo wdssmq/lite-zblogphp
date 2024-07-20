@@ -91,6 +91,14 @@ interface Network__Interface
     public function addText($name, $entity);
 
     /**
+     * @param string $name
+     * @param string $entity
+     *
+     * @return mixed
+     */
+    public function addFormParam($name, $entity);
+
+    /**
      * @param $resolveTimeout
      * @param $connectTimeout
      * @param $sendTimeout
@@ -99,5 +107,52 @@ interface Network__Interface
      * @return mixed
      */
     public function setTimeOuts($resolveTimeout, $connectTimeout, $sendTimeout, $receiveTimeout);
+
+    /**
+     * 新增查询.
+     *
+     * @param string $name
+     * @param string $entity
+     */
+    public function addQuery($name, $entity);
+
+    /**
+     * @return mixed
+     */
+    public function getStatusCode();
+
+    /**
+     * @return mixed
+     */
+    public function getStatusText();
+
+    /**
+     * @return mixed
+     */
+    public function getReasonPhrase();
+
+    /**
+     * @return mixed
+     */
+    public function withStatus($code, $reasonPhrase = '');
+
+    /**
+     * @return mixed
+     */
+    public function getBody();
+
+    /**
+     * @return mixed
+     */
+    public function getHeaders();
+
+    /**
+     * @return mixed
+     */
+    public function getHeader($name);
+    /**
+     * @return mixed
+     */
+    public function hasHeader($name);
 
 }

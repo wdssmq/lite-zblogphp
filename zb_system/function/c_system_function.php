@@ -140,7 +140,7 @@ function GetPost($idorname, $option = null)
     }
 
     foreach ($GLOBALS['hooks']['Filter_Plugin_GetPost_Result'] as $fpname => &$fpsignal) {
-        $fpreturn = $fpname($post);
+        $fpreturn = call_user_func($fpname, $post);
     }
 
     return $post;
@@ -426,20 +426,44 @@ function GetList($count = 10, $cate = null, $auth = null, $date = null, $tags = 
  * @param $file
  * @param $line
  *
- * @api Filter_Plugin_Zbp_ShowError
+ * @api Filter_Plugin_Debug_Handler_ZEE
  *
  * @throws Exception
  */
-function Include_ShowError404($errorCode, $errorDescription, $file, $line)
+function Include_ShowError404($errorCode, $errorDescription = null, $file = null, $line = null)
 {
     global $zbp;
-    if (!in_array("Status: 404 Not Found", headers_list())) {
+    $signal = &$GLOBALS['hooks']['Filter_Plugin_Debug_Handler_ZEE']['Include_ShowError404'];
+
+    if (is_a($errorCode, 'ZbpErrorException')) {
+        if ($errorCode->getHttpCode() == 404) {
+            Http404();
+            $errorDescription = $errorCode->getMessage();
+            $file = $errorCode->getFile();
+            $line = $errorCode->getLine();
+            $errorCode = $errorCode->getCode();
+            $signal = PLUGIN_EXITSIGNAL_RETURN;
+        } elseif (in_array("Status: 404 Not Found", headers_list())) {
+            $signal = PLUGIN_EXITSIGNAL_RETURN;
+        } elseif (function_exists('http_response_code') && http_response_code() == 404){
+            $signal = PLUGIN_EXITSIGNAL_RETURN;
+        } else {
+            return;
+        }
+    } elseif (in_array("Status: 404 Not Found", headers_list())) {
+        $signal = PLUGIN_EXITSIGNAL_RETURN;
+    } else {
         return;
     }
 
     $zbp->template->SetTags('title', $zbp->title);
     $zbp->template->SetTemplate('404');
+    $zbp->template->SetTags('type', '404');
     $zbp->template->Display();
+
+    if (IS_CLI && (IS_WORKERMAN || IS_SWOOLE)) {
+        return true;
+    }
 
     exit;
 }
@@ -586,10 +610,8 @@ function Include_Index_Begin()
     global $zbp;
     $zbp->CheckSiteClosed();
 
-    $zbp->RedirectPermanentDomain();
-
     if ($zbp->template->hasTemplate('404')) {
-        Add_Filter_Plugin('Filter_Plugin_Zbp_ShowError', 'Include_ShowError404');
+        Add_Filter_Plugin('Filter_Plugin_Debug_Handler_ZEE', 'Include_ShowError404');
     }
 
     if ($zbp->option['ZC_ADDITIONAL_SECURITY']) {
@@ -613,6 +635,24 @@ function Include_Frontend_CheckRights($action, $level)
         }
         if ($zbp->option['ZC_ALLOW_AUDITTING_MEMBER_VISIT_MANAGE'] == false && $action == 'admin') {
             $GLOBALS['hooks']['Filter_Plugin_Zbp_CheckRights']['Include_Frontend_CheckRights'] = PLUGIN_EXITSIGNAL_RETURN;
+            return false;
+        }
+    }
+}
+
+/**
+ * 在ViewList,ViewPost中对view权限进行验证
+ */
+function Include_ViewListPost_CheckRights_View($route)
+{
+    global $zbp;
+    if (is_array($route)) {
+        $posttype = GetValueInArray($route, 'posttype', 0);
+        //没权限就返回
+        $actions = $zbp->GetPostType($posttype, 'actions');
+        if (!$zbp->CheckRights($actions['view'])) {
+            SetPluginSignal('Filter_Plugin_ViewList_Begin_V2', __FUNCTION__, PLUGIN_EXITSIGNAL_RETURN);
+            SetPluginSignal('Filter_Plugin_ViewPost_Begin_V2', __FUNCTION__, PLUGIN_EXITSIGNAL_RETURN);
             return false;
         }
     }
@@ -857,11 +897,17 @@ function CountCommentNums($allplus = null, $chkplus = null)
         $zbp->cache->all_comment_nums = (int) GetValueInArrayByCurrent($zbp->db->sql->get()->select($GLOBALS['table']['Comment'])->count(array('*' => 'num'))->query, 'num');
     } else {
         $zbp->cache->all_comment_nums += $allplus;
+        if ($zbp->cache->all_comment_nums < 0) {
+            $zbp->cache->all_comment_nums = 0;
+        }
     }
     if ($chkplus === null) {
         $zbp->cache->check_comment_nums = (int) GetValueInArrayByCurrent($zbp->db->sql->get()->select($GLOBALS['table']['Comment'])->count(array('*' => 'num'))->where('=', 'comm_Ischecking', '1')->query, 'num');
     } else {
         $zbp->cache->check_comment_nums += $chkplus;
+        if ($zbp->cache->check_comment_nums < 0) {
+            $zbp->cache->check_comment_nums = 0;
+        }
     }
     $zbp->cache->normal_comment_nums = (int) ($zbp->cache->all_comment_nums - $zbp->cache->check_comment_nums);
 }
@@ -882,6 +928,9 @@ function CountNormalArticleNums($plus = null)
         $zbp->cache->normal_article_nums = $num;
     } else {
         $zbp->cache->normal_article_nums += $plus;
+        if ($zbp->cache->normal_article_nums < 0) {
+            $zbp->cache->normal_article_nums = 0;
+        }
     }
 }
 
@@ -904,6 +953,9 @@ function CountPost(&$article, $plus = null)
         $article->CommNums = $num;
     } else {
         $article->CommNums += $plus;
+        if ($article->CommNums < 0) {
+            $article->CommNums = 0;
+        }
     }
 }
 
@@ -951,6 +1003,9 @@ function CountCategory(&$category, $plus = null, $type = 0)
         $category->Count = $num;
     } else {
         $category->Count += $plus;
+        if ($category->Count < 0) {
+            $category->Count = 0;
+        }
     }
 }
 
@@ -998,6 +1053,9 @@ function CountTag(&$tag, $plus = null, $type = 0)
         $tag->Count = $num;
     } else {
         $tag->Count += $plus;
+        if ($tag->Count < 0) {
+            $tag->Count = 0;
+        }
     }
 }
 
@@ -1055,6 +1113,9 @@ function CountMember(&$member, $plus = array(null, null, null, null))
         $member->Articles = $member_Articles;
     } else {
         $member->Articles += $plus[0];
+        if ($member->Articles < 0) {
+            $member->Articles = 0;
+        }
     }
 
     if ($plus[1] === null) {
@@ -1063,6 +1124,9 @@ function CountMember(&$member, $plus = array(null, null, null, null))
         $member->Pages = $member_Pages;
     } else {
         $member->Pages += $plus[1];
+        if ($member->Pages < 0) {
+            $member->Pages = 0;
+        }
     }
 
     if ($plus[2] === null) {
@@ -1073,6 +1137,9 @@ function CountMember(&$member, $plus = array(null, null, null, null))
         }
     } else {
         $member->Comments += $plus[2];
+        if ($member->Comments < 0) {
+            $member->Comments = 0;
+        }
     }
 
     if ($plus[3] === null) {
@@ -1081,6 +1148,9 @@ function CountMember(&$member, $plus = array(null, null, null, null))
         $member->Uploads = $member_Uploads;
     } else {
         $member->Uploads += $plus[3];
+        if ($member->Uploads < 0) {
+            $member->Uploads = 0;
+        }
     }
 }
 
@@ -1238,4 +1308,44 @@ function BuildModule_authors($level = 4)
 function BuildModule_statistics($array = array())
 {
     return ModuleBuilder::Statistics($array);
+}
+
+/**
+ * 消除16升级17又退回16后再升级17出的bug;
+ */
+function Fix_16_to_17_and_17_to_16_Error()
+{
+    global $zbp;
+    $result = $zbp->db->Query("SELECT conf_Name, COUNT(conf_Name) FROM {$zbp->table['Config']} GROUP BY conf_Name");
+    $config_list = array();
+
+    foreach ($result as $r) {
+        if (is_array($r)) {
+            $config_list[current($r)] = next($r);
+        }
+    }
+
+    foreach ($config_list as $k => $v) {
+        if ($config_list[$k] == 1) {
+            unset($config_list[$k]);
+        }
+    }
+
+    if (count($config_list) < 1) {
+        return;
+    }
+
+    foreach ($config_list as $k => $v) {
+        $result = $zbp->db->Query("SELECT conf_Value FROM {$zbp->table['Config']} WHERE conf_Name = '{$k}' LIMIT 1");
+        if (is_array($result) && is_array($result[0])) {
+            $config_list[$k] = current($result[0]);
+        }
+    }
+
+    foreach ($config_list as $k => $v) {
+        $zbp->db->Delete("DELETE FROM {$zbp->table['Config']} WHERE conf_Name = '{$k}'");
+        $zbp->db->Insert("INSERT INTO {$zbp->table['Config']} (conf_Name,conf_Value) VALUES ( '{$k}' , '" . $zbp->db->EscapeString($v) . "' )");
+    }
+
+    die;
 }

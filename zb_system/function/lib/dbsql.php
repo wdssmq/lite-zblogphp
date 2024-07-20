@@ -128,12 +128,15 @@ class DbSql
     {
         if (!is_array($option)) {
             $option = array();
+        } else {
+            $option = array_change_key_case($option, CASE_LOWER);
         }
 
         $sql = $this->get()->select($table)->option($option)->where($where)->orderBy($order)->limit($limit);
 
         //定义出key array
         $array = array('COUNT', 'MIN', 'MAX', 'SUM', 'AVG', 'SELECTANY', 'FROM', 'INNERJOIN', 'LEFTJOIN', 'RIGHTJOIN', 'JOIN', 'FULLJOIN', 'USEINDEX', 'FORCEINDEX', 'IGNOREINDEX', 'ON', 'DISTINCT', 'RANDOM', 'COLUMN', 'GROUPBY', 'HAVING', 'WHERE', 'ORDER', 'LIMIT');
+
         foreach ($array as $key => $keyword) {
             if (isset($option[strtolower($keyword)])) {
                 $args = array($option[strtolower($keyword)]);
@@ -151,10 +154,11 @@ class DbSql
                     }
                 }
                 $query = $sqlpb->query;
-                $option['pagebar']->Count = GetValueInArrayByCurrent($query, 'num');
+                $option['pagebar']->Count = (int) GetValueInArrayByCurrent($query, 'num');
+            } else {
+                $option['pagebar']->Count = (int) $option['pagebar']->Count;
             }
-            $option['pagebar']->Count = (int) $option['pagebar']->Count;
-            $option['pagebar']->make();
+            $option['pagebar']->Make();
         }
 
         if (!is_array($select)) {
@@ -272,31 +276,39 @@ class DbSql
     public function Export($table, $keyvalue, $type = 'mysql')
     {
         if ($type == 'mysql' && $this->pri_explort_db === null) {
-            $this->pri_explort_db = new Database_MySQL();
+            $this->pri_explort_db = new Database__MySQL();
         }
 
         if ($type == 'mysqli' && $this->pri_explort_db === null) {
-            $this->pri_explort_db = new Database_MySQLi();
+            $this->pri_explort_db = new Database__MySQLi();
         }
 
         if ($type == 'pdo_mysql' && $this->pri_explort_db === null) {
-            $this->pri_explort_db = new Database_PDOMySQL();
+            $this->pri_explort_db = new Database__PDO_MySQL();
         }
 
         if ($type == 'sqlite' && $this->pri_explort_db === null) {
-            $this->pri_explort_db = new Database_SQLite();
+            $this->pri_explort_db = new Database__SQLite();
         }
 
         if ($type == 'sqlite3' && $this->pri_explort_db === null) {
-            $this->pri_explort_db = new Database_SQLite();
+            $this->pri_explort_db = new Database__SQLite3();
         }
 
         if ($type == 'pdo_sqlite' && $this->pri_explort_db === null) {
-            $this->pri_explort_db = new Database_SQLite3();
+            $this->pri_explort_db = new Database__PDO_SQLite();
+        }
+
+        if ($type == 'postgresql' && $this->pri_explort_db === null) {
+            $this->pri_explort_db = new Database__PostgreSQL();
+        }
+
+        if ($type == 'pdo_postgresql' && $this->pri_explort_db === null) {
+            $this->pri_explort_db = new Database__PDO_PostgreSQL();
         }
 
         if ($this->pri_explort_db === null) {
-            $this->pri_explort_db = new Database_MySQL();
+            $this->pri_explort_db = new Database__MySQL();
         }
 
         $sql = "INSERT INTO $table ";
@@ -335,6 +347,11 @@ class DbSql
         if ($command == 'BEGIN' || $command == 'COMMIT' || $command == 'ROLLBACK') {
             return $command;
         }
+    }
+
+    public function GetInsertId($table = null)
+    {
+        return $this->db->GetInsertId($table);
     }
 
 }

@@ -70,12 +70,22 @@ class UrlRule
         return $this->PreUrl;
     }
 
+    public function SetPreUrl($url)
+    {
+        $this->PreUrl = $url;
+    }
+
     /**
      * @return array
      */
     public function GetRoute()
     {
         return $this->Route;
+    }
+
+    public function SetRoute($array)
+    {
+        $this->Route = $array;
     }
 
     /**
@@ -154,17 +164,17 @@ class UrlRule
 
         foreach ($this->Rules as $key => $value) {
             if (!is_array($value)) {
-                $url = str_replace($key, $value, $url);
+                $url = str_replace($key, (string) $value, $url);
             }
         }
 
         //1.7的魔术戏法：处理路由规则里预先指定好的"关联数据来源"的参数并先替换一次
         $paras = self::ProcessParameters($route);
-        foreach ($paras as $key => &$p) {
+        foreach ($paras as &$p) {
             if ($p['relate'] && is_object($this->RulesObject)) {
                 $object = clone $this->RulesObject;
                 $objectArray = explode('.', $p['relate']);
-                foreach ($objectArray as $key => $subObject) {
+                foreach ($objectArray as $subObject) {
                     //先判断是数组，还是函数，还是对象
                     if (stripos($subObject, '[') !== false) {
                         $i = preg_match_all('/\[.+\]/', $subObject, $m);
@@ -205,7 +215,7 @@ class UrlRule
                 }
             }
         }
-        foreach ($paras as $key => $p) {
+        foreach ($paras as $p) {
             //首先替换人为指定value的
             if (array_key_exists('value', $p)) {
                 $url = str_replace('{%' . $p['name'] . '%}', $p['value'], $url);
@@ -231,7 +241,8 @@ class UrlRule
         if (substr($url, -2) == '//') {
             $url = substr($url, 0, (strlen($url) - 1));
         }
-        $url = trim($url, '&');
+        $url = rtrim($url, '&');
+        $url = rtrim($url, '?');
 
         $this->Url = htmlspecialchars($url);
 
@@ -248,7 +259,7 @@ class UrlRule
     public static function ProcessParameters($route)
     {
         $newargs = array();
-        
+
         if (isset($route['args'])) {
             $parameters = $route['args'];
         } else {
@@ -444,6 +455,7 @@ class UrlRule
         $url = str_replace('{%host%}', $prefix, $url);
         $url = str_replace('.', '\\.', $url);
         $url = str_replace('/', '\\/', $url);
+        $url = str_replace('?', '\\?', $url);
 
         //把page传进$newargs
         $newargs[] = array('name'  => 'page', 'regex' => '[0-9]+');
@@ -519,6 +531,7 @@ class UrlRule
         $url = str_replace('{%host%}/', '{%host%}', $url);
         $url = str_replace('.', '\\.', $url);
         $url = str_replace('/', '\\/', $url);
+        $url = str_replace('?', '\\?', $url);
 
         $array = array();
         $array[] = array('{%page%}' => '(?P<page>[0-9]+)');
@@ -556,7 +569,7 @@ class UrlRule
             $array[] = array('{%alias%}' => '(?P<' . $type . '>.+)');
             $array[] = array('{' . $type . '}' => '(?P<' . $type . '>.+)');
         }
- 
+
         foreach ($array as $key => $value) {
             $url = str_replace(key($value), current($value), $url);
         }

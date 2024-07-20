@@ -31,6 +31,8 @@ class Network__curl implements Network__Interface
 
     private $url = '';
 
+    private $getdata = array();
+
     private $postdata = array();
 
     private $httpheader = array();
@@ -40,6 +42,8 @@ class Network__curl implements Network__Interface
     private $parsed_url = array();
 
     private $timeout = 30;
+
+    private $set_timeouts = false;
 
     private $errstr = '';
 
@@ -53,12 +57,14 @@ class Network__curl implements Network__Interface
 
     private $private_isBinary = false;
 
+    private $curl = null;
+
     /**
      * @ignore
      */
     public function __construct()
     {
-        //$this->ch = curl_init();
+        $this->curl = &$this->ch;
     }
 
     /**
@@ -190,6 +196,44 @@ class Network__curl implements Network__Interface
     {
         curl_setopt($this->ch, CURLOPT_CONNECTTIMEOUT, $connectTimeout);
         curl_setopt($this->ch, CURLOPT_TIMEOUT, $resolveTimeout);
+        $this->set_timeouts = true;
+    }
+
+    /**
+     * 处理 querystring 到 url.
+     */
+    private function load_query_to_url()
+    {
+        $url = curl_getinfo($this->ch, CURLINFO_EFFECTIVE_URL);
+
+        $this->parsed_url = parse_url($url);
+
+        $breforedata = array();
+        if (isset($this->parsed_url['query'])) {
+            parse_str($this->parsed_url['query'], $breforedata);
+        }
+
+        $newdata = array_merge($breforedata, $this->getdata);
+        $query_string = http_build_query($newdata);
+
+        $fragment = '';
+        if (stripos($url, '#') !== false) {
+            $url = SplitAndGet($url, '#');
+            $fragment = '#' . SplitAndGet($url, '#', 1);
+        }
+        $url = SplitAndGet($url, '?');
+        curl_setopt($this->ch, CURLOPT_URL, $url . '?' . $query_string . $fragment);
+    }
+
+    /**
+     * 新增查询.
+     *
+     * @param string $name
+     * @param string $entity
+     */
+    public function addQuery($name, $entity)
+    {
+        $this->getdata[$name] = $entity;
     }
 
     /**
@@ -205,18 +249,16 @@ class Network__curl implements Network__Interface
         }
         curl_setopt($this->ch, CURLOPT_HTTPHEADER, $this->httpheader);
 
-        if ($this->option['method'] == 'POST') {
+        $this->load_query_to_url();
+
+        if ($this->option['method'] == 'POST' || $this->option['method'] == 'PUT') {
             if (is_string($varBody) && count($this->postdata) > 0) {
                 parse_str($varBody, $data);
                 $data = ($data + $this->postdata);
             } elseif (is_array($varBody) && count($this->postdata) > 0) {
                 $data = ($varBody + $this->postdata);
             }
-            if ($this->private_isBinary) {
-                curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, 'POST');
-            } else {
-                curl_setopt($this->ch, CURLOPT_POST, 1);
-            }
+            curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, $this->option['method']);
             curl_setopt($this->ch, CURLOPT_POSTFIELDS, $data);
         } else {
             curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, $this->option['method']);
@@ -238,11 +280,22 @@ class Network__curl implements Network__Interface
         curl_setopt($this->ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($this->ch, CURLOPT_SSL_VERIFYHOST, false);
 
+        if ($this->set_timeouts == false) {
+            if (!isset($this->option['timeout'])) {
+                $this->option['timeout'] = $this->timeout;
+            }
+            curl_setopt($this->ch, CURLOPT_CONNECTTIMEOUT, $this->option['timeout']);
+            curl_setopt($this->ch, CURLOPT_TIMEOUT, $this->option['timeout']);
+        }
+
         $result = curl_exec($this->ch);
         $header_size = curl_getinfo($this->ch, CURLINFO_HEADER_SIZE);
 
         $this->responseHeader = explode("\r\n", substr($result, 0, ($header_size - 4)));
         $this->responseText = substr($result, $header_size);
+        if (is_bool($this->responseText) && !$this->responseText) {
+            $this->responseText = '';
+        }
         curl_close($this->ch);
 
         foreach ($this->responseHeader as $key => $value) {
@@ -306,7 +359,6 @@ class Network__curl implements Network__Interface
      */
     public function addBinary($name, $entity, $filename = null, $mime = '')
     {
-        global $zbp;
         $this->private_isBinary = true;
 
         if (!is_file($entity)) {
@@ -352,11 +404,22 @@ class Network__curl implements Network__Interface
      * @param string $name
      * @param string $entity
      *
-     * @return mixed
+     * @return void
      */
     public function addText($name, $entity)
     {
-        return $this->add_postdata($name, $entity);
+        $this->add_postdata($name, $entity);
+    }
+
+    /**
+     * @param string $name
+     * @param string $entity
+     *
+     * @return void
+     */
+    public function addFormParam($name, $entity)
+    {
+        $this->addText($name, $entity);
     }
 
     /**
@@ -364,7 +427,6 @@ class Network__curl implements Network__Interface
      */
     private function reinit()
     {
-        global $zbp;
         $this->readyState = 0; //状态
         $this->responseBody = null; //返回的二进制
         $this->responseStream = null; //返回的数据流
@@ -377,6 +439,7 @@ class Network__curl implements Network__Interface
 
         $this->option = array();
         $this->url = '';
+        $this->getdata = array();
         $this->postdata = array();
         $this->httpheader = array();
         $this->responseHeader = array();
@@ -384,9 +447,15 @@ class Network__curl implements Network__Interface
         $this->timeout = 30;
         $this->errstr = '';
         $this->errno = 0;
+        $this->set_timeouts = false;
 
         $this->ch = curl_init();
-        $this->setRequestHeader('User-Agent', 'Mozilla/5.0 (' . $zbp->cache->system_environment . ') Z-BlogPHP/' . $GLOBALS['blogversion']);
+
+        if (defined('ZBP_PATH')) {
+            $this->setRequestHeader('User-Agent', 'Mozilla/5.0 (' . $GLOBALS['zbp']->cache->system_environment . ') Z-BlogPHP/' . $GLOBALS['zbp']->version);
+        } else {
+            $this->setRequestHeader('User-Agent', 'Mozilla/5.0 (compatible; ZBP_NetWork)');
+        }
         $this->setMaxRedirs(1);
     }
 
@@ -406,6 +475,60 @@ class Network__curl implements Network__Interface
     public function setMaxRedirs($n = 0)
     {
         $this->maxredirs = (int) $n;
+    }
+
+    public function getStatusCode()
+    {
+        return $this->status;
+    }
+
+    public function getStatusText()
+    {
+        return $this->statusText;
+    }
+
+    public function getReasonPhrase()
+    {
+        return substr($this->statusText, 13);
+    }
+
+    public function withStatus($code, $reasonPhrase = '')
+    {
+    }
+
+    public function getBody()
+    {
+        return $this->responseText;
+    }
+
+    public function getHeaders()
+    {
+        $headers = array();
+        foreach ($this->responseHeader as $h) {
+            $array = explode(': ', $h, 2);
+            if (count($array) > 1) {
+                if (isset($headers[$array[0]]) == false) {
+                    $headers[$array[0]] = array();
+                }
+                $headers[$array[0]][] = $array[1];
+            }
+        }
+        return $headers;
+    }
+
+    public function getHeader($name)
+    {
+        $headers = $this->getHeaders();
+        if (isset($headers[$name])) {
+            return $headers[$name];
+        }
+        return array();
+    }
+
+    public function hasHeader($name)
+    {
+        $headers = $this->getHeaders();
+        return isset($headers[$name]);
     }
 
 }

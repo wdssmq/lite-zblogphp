@@ -23,12 +23,18 @@ define('PLUGIN_EXITSIGNAL_RETURN', 'return');
  * 插件中断方式：break
  */
 define('PLUGIN_EXITSIGNAL_BREAK', 'break');
+/*
+ * 插件中断方式：goto
+ */
+define('PLUGIN_EXITSIGNAL_GOTO', 'goto');
+
 
 //定义总插件激活列表
 $GLOBALS['plugins'] = array();
 
 //定义总接口列表，1.5版启用，逐渐过度到hooks
 $GLOBALS['hooks'] = array();
+$GLOBALS['hooks_addition'] = array();
 
 /**
  * 注册插件函数，由每个插件主动调用.
@@ -61,7 +67,7 @@ function InstallPlugin($strPluginName)
 /**
  * 插件删除函数，只在插件删除时运行一次
  *
- * @param $strPluginName 插件ID
+ * @param string $strPluginName 插件ID
  *
  * @return void
  */
@@ -74,9 +80,9 @@ function UninstallPlugin($strPluginName)
 }
 
 /**
- * 创建插件接口
+ * 定义插件接口Hook
  *
- * @param $strPluginFilter 插件接口
+ * @param string $strPluginFilter 插件接口Hook
  *
  * @return boolean
  */
@@ -93,9 +99,9 @@ function DefinePluginFilter($strPluginFilter)
 }
 
 /**
- * 检查插件接口
+ * 检查插件接口Hook
  *
- * @param $strPluginFilter 插件接口
+ * @param string $strPluginFilter 插件接口Hook
  *
  * @return boolean
  */
@@ -105,9 +111,9 @@ function ExistsPluginFilter($strPluginFilter)
 }
 
 /**
- * 调用插件接口(没用)
+ * 调用插件接口(php >= 5.5可以在接口调用处使用)
  *
- * @param $strPluginFilter 插件接口
+ * @param string $strPluginFilter 插件接口Hook
  *
  * @return array
  */
@@ -116,14 +122,15 @@ function &UsingPluginFilter($strPluginFilter)
     if (isset($GLOBALS['hooks'][$strPluginFilter])) {
         return $GLOBALS['hooks'][$strPluginFilter];
     }
+    $result = array();
 
-    return array();
+    return $result;
 }
 
 /**
- * 移除插件接口
+ * 移除插件Hook接口
  *
- * @param $strPluginFilter 插件接口
+ * @param string $strPluginFilter 插件接口Hook
  *
  * @return boolean
  */
@@ -140,27 +147,54 @@ function RemovePluginFilter($strPluginFilter)
 }
 
 /**
- * 设置插件信号
+ * 设置插件自身信号
  *
  * @param $plugname
- * @param $function
+ * @param $functionname
  * @param $signal
  *
  * @return boolean
  */
-function SetPluginSignal($plugname, $function, $signal = 'PLUGIN_EXITSIGNAL_NONE')
+function SetPluginSignal($plugname, $functionname, $signal = PLUGIN_EXITSIGNAL_NONE)
 {
-    $GLOBALS['hooks'][$plugname][$function] = $signal;
+    if (isset($GLOBALS['hooks'][$plugname])) {
+        if (isset($GLOBALS['hooks'][$plugname][$functionname])) {
+            $GLOBALS['hooks'][$plugname][$functionname] = $signal;
 
-    return true;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * 获取插件自身信号
+ *
+ * @param $plugname
+ * @param $functionname
+ *
+ * @return string or null
+ */
+function GetPluginSignal($plugname, $functionname)
+{
+    if (isset($GLOBALS['hooks'][$plugname])) {
+        if (isset($GLOBALS['hooks'][$plugname][$functionname])) {
+            $signal = $GLOBALS['hooks'][$plugname][$functionname];
+
+            return $signal;
+        }
+    }
+
+    return null;
 }
 
 /**
  * 挂上Filter接口
  *
- * @param $plugname 接口名称
- * @param $functionname 要挂接的函数名
- * @param $exitsignal :return,break,continue
+ * @param string $plugname 接口名称
+ * @param string $functionname 要挂接的函数名
+ * @param string $exitsignal :return,break,continue
  *
  * @return boolean
  */
@@ -180,8 +214,8 @@ function Add_Filter_Plugin($plugname, $functionname, $exitsignal = PLUGIN_EXITSI
 /**
  * 卸载Filter接口的某项挂载函数
  *
- * @param $plugname 接口名称
- * @param $functionname 要挂接的函数名
+ * @param string $plugname 接口名称
+ * @param string $functionname 要挂接的函数名
  *
  * @return boolean
  */
@@ -198,6 +232,227 @@ function Remove_Filter_Plugin($plugname, $functionname)
     return false;
 }
 
+/**
+ * 清除Filter接口的所有挂载函数
+ *
+ * @param string $plugname 接口名称
+ *
+ * @return boolean
+ */
+function ClearFilterPlugin($plugname)
+{
+    if (isset($GLOBALS['hooks'][$plugname])) {
+        $GLOBALS['hooks'][$plugname] = array();
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * 暂停Filter接口
+ *
+ * @param string $plugname 接口名称
+ *
+ * @return boolean
+ */
+function SuspendFilterPlugin($plugname)
+{
+
+    if (isset($GLOBALS['hooks'][$plugname])) {
+        $array = $GLOBALS['hooks'][$plugname];
+        $GLOBALS['hooks'][$plugname] = array();
+        SetFilterPluginAddition($plugname, 'func_data', $array);
+        return true;
+    }
+    return false;
+
+}
+
+/**
+ * 恢复Filter接口
+ *
+ * @param string $plugname 接口名称
+ *
+ * @return boolean
+ */
+function ResumeFilterPlugin($plugname)
+{
+    
+    if (isset($GLOBALS['hooks'][$plugname])) {
+        $array = GetFilterPluginAddition($plugname, 'func_data');
+        if (!is_null($array) && is_array($array)) {
+            $GLOBALS['hooks'][$plugname] = $array;
+            SetFilterPluginAddition($plugname, 'func_data', null);
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * 解析Callback Filter接口的某项挂载函数名 (支持多种型式的function调用，已经玩出花了^_^)
+ *
+ * 要挂接的函数名 (可以是1函数名 2类名::静态方法名 3类名@动态方法名 4全局变量名@动态方法名 5全局匿名函数)
+ *
+ * @return mixed 解析后的function值
+ */
+function ParseFilterPlugin($fpname)
+{
+    $function = str_replace(' ', '', $fpname);
+
+    if (function_exists($function)) {
+        return $function;
+    } elseif (strpos($function, '::') !== false) {
+        $func = explode('::', $function);
+        $function = array($func[0], $func[1]);
+    } elseif (strpos($function, '@') !== false) {
+        $func = explode('@', $function);
+        if (class_exists($func[0])) {
+            $newobject = new $func[0];
+            $function = array($newobject, $func[1]);
+        } elseif (array_key_exists($func[0], $GLOBALS) && is_object($GLOBALS[$func[0]])) {
+            $function = array($GLOBALS[$func[0]], $func[1]);
+        }
+    } else {
+        if (array_key_exists($function, $GLOBALS) && is_object($GLOBALS[$function]) && get_class($GLOBALS[$function]) == 'Closure') {
+            $function = $GLOBALS[$function];
+        }
+    }
+    return $function;
+}
+
+/**
+ * 插入钩子 Filter接口
+ *
+ * @param string $plugname 接口名称
+ */
+function HookFilterPlugin($plugname)
+{
+    $array = func_get_args();
+    array_shift($array);
+    foreach ($GLOBALS['hooks'][$plugname] as $fpname => &$fpsignal) {
+        call_user_func_array(ParseFilterPlugin($fpname), $array);
+    }
+}
+
+/**
+ * 插入钩子 Filter接口引用版 (php>=5.6)
+ *
+ * @param string $plugname 接口名称
+ */
+/*
+function HookFilterPlugin_Ref($plugname, &...$args)
+{
+    foreach ($GLOBALS['hooks'][$plugname] as $fpname => &$fpsignal) {
+        call_user_func_array(ParseFilterPlugin($fpname), $args);
+    }
+}
+*/
+
+/**
+ * 插入钩子 Filter接口 的带返回值版
+ * 获取 Filter接口信号 请用GetFilterPluginSignal
+ * 与HookFilterPlugin的区别是HookFilterPluginBack可以被插件退出返回，中断，GOTO
+ * 
+ * @param string $plugname 接口名称
+ */
+function HookFilterPluginBack($plugname)
+{
+    $array = func_get_args();
+    array_shift($array);
+    foreach ($GLOBALS['hooks'][$plugname] as $fpname => &$fpsignal) {
+        $fpreturn = call_user_func_array(ParseFilterPlugin($fpname), $array);
+        SetFilterPluginSignal($plugname, $fpsignal);
+        if ($fpsignal === PLUGIN_EXITSIGNAL_RETURN || $fpsignal === PLUGIN_EXITSIGNAL_BREAK || $fpsignal === PLUGIN_EXITSIGNAL_GOTO) {
+            $fpsignal = PLUGIN_EXITSIGNAL_NONE;
+            return $fpreturn;
+        }
+    }
+}
+
+/**
+ * 插入钩子 Filter接口带返回值的引用版 (php>=5.6)
+ * 获取 Filter接口信号 请用GetFilterPluginSignal
+ * 
+ * @param string $plugname 接口名称
+ */
+/*
+function HookFilterPluginBack_Ref($plugname, &...$args)
+{
+    foreach ($GLOBALS['hooks'][$plugname] as $fpname => &$fpsignal) {
+        $fpreturn = call_user_func_array(ParseFilterPlugin($fpname), $args);
+        SetFilterPluginSignal($plugname, $fpsignal);
+        if ($fpsignal === PLUGIN_EXITSIGNAL_RETURN || $fpsignal === PLUGIN_EXITSIGNAL_BREAK || $fpsignal === PLUGIN_EXITSIGNAL_GOTO) {
+            $fpsignal = PLUGIN_EXITSIGNAL_NONE;
+            return $fpreturn;
+        }
+    }
+}
+*/
+
+/**
+ * 获取 Filter 接口信号
+ * 由宿主调用而非插件，插件获取信号用GetPluginSignal
+ *
+ * @param string $plugname 接口名称
+ */
+function GetFilterPluginSignal($plugname)
+{
+    $signal = GetFilterPluginAddition($plugname, 'signal');
+    SetFilterPluginAddition($plugname, 'signal', PLUGIN_EXITSIGNAL_NONE);
+    return $signal;
+}
+
+/**
+ * 设置 Filter 接口信号
+ * 由宿主调用而非插件，插件设置信号用SetPluginSignal
+ *
+ * @param string $plugname 接口名称
+ * @param string $signal 信号
+ */
+function SetFilterPluginSignal($plugname, $signal = PLUGIN_EXITSIGNAL_NONE)
+{
+    return SetFilterPluginAddition($plugname, 'signal', $signal);
+}
+
+/**
+ * 获取 Filter 接口附加信息
+ */
+function GetFilterPluginAddition($plugname, $key)
+{
+    $ha = &$GLOBALS['hooks_addition'];
+    if (isset($GLOBALS['hooks'][$plugname])) {
+        if (!isset($ha[$plugname])) {
+            $ha[$plugname] = array();
+        }
+        if (!array_key_exists($key, $ha[$plugname])) {
+            $ha[$plugname][$key] = null;
+        }
+        return $ha[$plugname][$key];
+    }
+    return null;
+}
+
+/**
+ * 设置 Filter 接口附加信息
+ */
+function SetFilterPluginAddition($plugname, $key, $value)
+{
+    $ha = &$GLOBALS['hooks_addition'];
+    if (isset($GLOBALS['hooks'][$plugname])) {
+        if (!isset($ha[$plugname])) {
+            $ha[$plugname] = array();
+        }
+        if (!array_key_exists($key, $ha[$plugname])) {
+            $ha[$plugname][$key] = null;
+        }
+        $ha[$plugname][$key] = $value;
+        return true;
+    }
+    return false;
+}
+
 //###############################################################################################################
 //<c_system_dubug,c_system_common里的接口>
 
@@ -205,8 +460,8 @@ function Remove_Filter_Plugin($plugname, $functionname)
 '**************************************************<
 '类型:Filter
 '名称:Filter_Plugin_Debug_Handler
-'参数:$type 类型(Shutdown|Exception|Error) $error 错误数据(对象或数组)
-'说明:定义Debug_Shutdown_Handler,Debug_Exception_Handler,Debug_Error_Handler函数的接口
+'参数:
+'说明:1.7.3已废弃，不应再使用
 '调用:
 '**************************************************>
  */
@@ -215,9 +470,31 @@ DefinePluginFilter('Filter_Plugin_Debug_Handler');
 /*
 '**************************************************<
 '类型:Filter
+'名称:Filter_Plugin_Debug_Handler_ZEE
+'参数:$zee 类型(ZbpErrorException), $debug_type
+'说明:定义Debug_Exception_Handler,Debug_Error_Handler函数的接口
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_Debug_Handler_ZEE');
+
+/*
+'**************************************************<
+'类型:Filter
+'名称:Filter_Plugin_Debug_Handler_Common
+'参数:int $errno, string $errstr, string $errfile, int $errline
+'说明:这是Filter_Plugin_Zbp_ShowError接口的替代品，无须改动插件函数的参数
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_Debug_Handler_Common');
+
+/*
+'**************************************************<
+'类型:Filter
 '名称:Filter_Plugin_Debug_Display
-'参数:
-'说明:定义ZBlogException的Display函数的接口
+'参数:$zec 类型(ZbpErrorContrl)
+'说明:定义ZBlogException的Display函数的接口(与Handler不同的是一个传入zbp异常类一个是控制类)
 '调用:
 '**************************************************>
  */
@@ -233,6 +510,17 @@ DefinePluginFilter('Filter_Plugin_Debug_Display');
 '**************************************************>
  */
 DefinePluginFilter('Filter_Plugin_Autoload');
+
+/*
+'**************************************************<
+'类型:Filter
+'名称:Filter_Plugin_Http_Request_Convert_To_Global
+'参数:$request
+'说明:http_request_convert_to_global函数
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_Http_Request_Convert_To_Global');
 
 /*
 '**************************************************<
@@ -310,8 +598,8 @@ DefinePluginFilter('Filter_Plugin_Zbp_CheckRights');
 '**************************************************<
 '类型:Filter
 '名称:Filter_Plugin_Zbp_ShowError
-'参数:$idortext
-'说明:Zbp类的显示错误接口
+'参数:
+'说明:1.7.3已废弃，请使用Filter_Plugin_Debug_Handler_Common接口，参数不变
 '调用:
 '**************************************************>
  */
@@ -386,6 +674,17 @@ DefinePluginFilter('Filter_Plugin_Zbp_BuildModule');
 /*
 '**************************************************<
 '类型:Filter
+'名称:Filter_Plugin_Zbp_RegBuildModules
+'参数:
+'说明:Zbp类的注册模块时的接口
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_Zbp_RegBuildModules');
+
+/*
+'**************************************************<
+'类型:Filter
 '名称:Filter_Plugin_Zbp_PreLoad
 '参数:
 '说明:Zbp类的预加载接口
@@ -449,17 +748,6 @@ DefinePluginFilter('Filter_Plugin_Zbp_LoadManage');
 '**************************************************>
  */
 DefinePluginFilter('Filter_Plugin_Zbp_Terminate');
-
-/*
-'**************************************************<
-'类型:Filter
-'名称:Filter_Plugin_Zbp_LoadLanguage
-'参数:&$lang
-'说明:Zbp类的加载语言包的接口
-'调用:
-'**************************************************>
- */
-DefinePluginFilter('Filter_Plugin_Zbp_LoadLanguage');
 
 //###############################################################################################################
 //<前台view,index>
@@ -583,6 +871,17 @@ DefinePluginFilter('Filter_Plugin_Cmd_End');
 '**************************************************>
  */
 DefinePluginFilter('Filter_Plugin_Cmd_Ajax');
+
+/*
+'**************************************************<
+'类型:Filter
+'名称:Filter_Plugin_Cmd_Redirect
+'参数:$url, $action
+'说明:cmd.php的最后跳转接口,用于修改url跳转值
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_Cmd_Redirect');
 
 /*
 '**************************************************<
@@ -1407,7 +1706,7 @@ DefinePluginFilter('Filter_Plugin_ViewList_Begin_V2');
 '**************************************************<
 '类型:Filter
 '名称:Filter_Plugin_ViewList_Core
-'参数:&$type,&$page,&$category,&$author,&$datetime,&$tag,&$w,&$pagebar
+'参数:&$type,&$page,&$category,&$author,&$datetime,&$tag,&$w,&$pagebar,$list_template
 '说明:定义列表核心接口
 '调用:
 '**************************************************>
@@ -1505,6 +1804,17 @@ DefinePluginFilter('Filter_Plugin_ViewPost_Template');
 /*
 '**************************************************<
 '类型:Filter
+'名称:Filter_Plugin_ViewPost_ViewNums
+'参数:&$article
+'说明:
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_ViewPost_ViewNums');
+
+/*
+'**************************************************<
+'类型:Filter
 '名称:Filter_Plugin_ViewSearch_Template
 '参数:&$template
 '说明:
@@ -1534,6 +1844,17 @@ DefinePluginFilter('Filter_Plugin_ViewComments_Template');
 '**************************************************>
  */
 DefinePluginFilter('Filter_Plugin_ViewComment_Template');
+
+/*
+'**************************************************<
+'类型:Filter
+'名称:Filter_Plugin_ViewExternalLink_Template
+'参数:&$template
+'说明:
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_ViewExternalLink_Template');
 
 /*
 '**************************************************<
@@ -2437,7 +2758,7 @@ DefinePluginFilter('Filter_Plugin_Template_GetTemplate');
 '名称:Filter_Plugin_Template_Display
 '参数:$this, $entryPage
 '说明:Template类显示接口
-'调用:未启用
+'调用:
 '**************************************************>
  */
 DefinePluginFilter('Filter_Plugin_Template_Display');
@@ -2596,13 +2917,13 @@ DefinePluginFilter('Filter_Plugin_API_Extend_Mods');
 /*
 '**************************************************<
 '类型:Filter
-'名称:Filter_Plugin_API_ListCheck
+'名称:Filter_Plugin_API_CheckMods
 '参数:&$mods_allow, &$mods_disallow
 '说明:API 的黑白名单机制
 '调用:
 '**************************************************>
  */
-DefinePluginFilter('Filter_Plugin_API_ListCheck');
+DefinePluginFilter('Filter_Plugin_API_CheckMods');
 
 /*
 '**************************************************<
@@ -2641,9 +2962,42 @@ DefinePluginFilter('Filter_Plugin_API_Get_Object_Array');
 '**************************************************<
 '类型:Filter
 '名称:Filter_Plugin_API_VerifyCSRF_Skip
-'参数:&$skip_acts, $csrf_token
+'参数:&$skip_acts
 '说明:API 校验 CSRF Token 跳过验证
 '调用:
 '**************************************************>
  */
 DefinePluginFilter('Filter_Plugin_API_VerifyCSRF_Skip');
+
+/*
+'**************************************************<
+'类型:Filter
+'名称:Filter_Plugin_API_Result_Data
+'参数:&$result, $mod, $act
+'说明:处理返回数据
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_API_Result_Data');
+
+/*
+'**************************************************<
+'类型:Filter
+'名称:Filter_Plugin_API_Post_List_Core
+'参数:&$select, $where, $order, $limit, $option
+'说明:处理api_post_list的查询
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_API_Post_List_Core');
+
+/*
+'**************************************************<
+'类型:Filter
+'名称:Filter_Plugin_API_Pre_Response_Raw
+'参数:&$raw, &$$raw_type
+'说明:处理返回数据
+'调用:
+'**************************************************>
+ */
+DefinePluginFilter('Filter_Plugin_API_Pre_Response_Raw');

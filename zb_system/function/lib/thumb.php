@@ -5,7 +5,9 @@ if (!defined('ZBP_PATH')) {
 }
 
 // 系统提供的默认缩略图
-define('ZBP_THUMB_DEFAULT_IMG', ZBP_PATH . 'zb_system/image/default/thumb.png');
+if (!defined('ZBP_THUMB_DEFAULT_IMG')) {
+    define('ZBP_THUMB_DEFAULT_IMG', ZBP_PATH . 'zb_system/image/default/thumb.png');
+}
 
 /**
  * 缩略图类.
@@ -35,6 +37,13 @@ class Thumb
     static public $minHeightNeedToThumb = 50;
 
     /**
+     * 默认图片质量
+     *
+     * @var integer
+     */
+    static public $quality = 90;
+
+    /**
      * 需要排除的本地路径.
      *
      * @var array
@@ -53,14 +62,14 @@ class Thumb
     /**
      * 图片句柄.
      *
-     * @var resource
+     * @var GdImage
      */
     protected $srcRes;
 
     /**
      * 临时图片句柄.
      *
-     * @var resource|null
+     * @var GdImage
      */
     protected $tmpRes;
 
@@ -143,6 +152,11 @@ class Thumb
             self::$defaultImg = ZBP_THUMB_DEFAULT_IMG;
         }
 
+        $default_quality = (int) $zbp->option['ZC_THUMB_DEFAULT_QUALITY'];
+        if ($default_quality > 0 && $default_quality <= 100) {
+            self::$quality = $default_quality;
+        }
+
         $thumbs = array();
 
         $i = 0;
@@ -153,8 +167,18 @@ class Thumb
             if (! $image) {
                 continue;
             }
+            if (PHP_SYSTEM === SYSTEM_WINDOWS) {
+                $image = iconv("UTF-8", "GBK//IGNORE", $image);
+            }
             $ext = GetFileExt($image);
-            if (! in_array($ext, array('jpeg', 'jpg', 'png', 'gif', 'bmp'))) {
+            $ext_arr = array('jpeg', 'jpg', 'png', 'gif', 'bmp');
+            if (function_exists('imageavif')) {
+                $ext_arr[] = 'avif';
+            }
+            if (function_exists('imagewebp')) {
+                $ext_arr[] = 'webp';
+            }
+            if (! in_array($ext, $ext_arr)) {
                 continue;
             }
             if (count($parsed_url = parse_url($image)) === 1 && isset($parsed_url['path'])) {
@@ -180,7 +204,7 @@ class Thumb
             }
             $thumb = new self;
 
-            ZBlogException::SuspendErrorHook();
+            ZbpErrorControl::SuspendErrorHook();
             try {
                 if (! CheckUrlIsLocal($image)) {
                     $thumb->loadSrcByExternalUrl($image);
@@ -188,12 +212,12 @@ class Thumb
                     $thumb->loadSrcByPath($img_path);
                 }
             } catch (Exception $e) {
-                ZBlogException::ResumeErrorHook();
+                ZbpErrorControl::ResumeErrorHook();
                 if (self::$defaultImg) {
                     $thumb->loadSrcByPath(self::$defaultImg);
                 }
             }
-            ZBlogException::ResumeErrorHook();
+            ZbpErrorControl::ResumeErrorHook();
 
             if ($thumb->loadedCompletely) {
                 $thumb->shouldClip($clip)->setWidth($width)->setHeight($height)->setDstImagePath($thumb_path)->handle();
@@ -226,7 +250,7 @@ class Thumb
      * 相对地址处理.
      *
      * @param string $url
-     * @return string
+     * @return void
      */
     protected static function handleRelativeUrl(&$url)
     {
@@ -286,7 +310,7 @@ class Thumb
     public function loadSrcByString($img_string)
     {
         $this->srcRes = imagecreatefromstring($img_string);
-        
+
         if (! $this->srcRes) {
             throw new Exception($GLOBALS['zbp']->lang['error']['101']);
         }
@@ -446,7 +470,7 @@ class Thumb
         switch ($ext) {
             case 'jpg':
             case 'jpeg':
-                imagejpeg($this->srcRes, $this->dstImagePath, 90);
+                imagejpeg($this->srcRes, $this->dstImagePath, self::$quality);
                 break;
             case 'gif':
                 imagegif($this->srcRes, $this->dstImagePath);
@@ -454,8 +478,18 @@ class Thumb
             case 'png':
                 imagepng($this->srcRes, $this->dstImagePath);
                 break;
+            case 'webp':
+                imagewebp($this->srcRes, $this->dstImagePath, self::$quality);
+                break;
+            case 'avif':
+                imageavif($this->srcRes, $this->dstImagePath, self::$quality);
+                break;
             case 'bmp':
-                imagebmp($this->srcRes, $this->dstImagePath);
+                if (function_exists('imagebmp')) {
+                    imagebmp($this->srcRes, $this->dstImagePath);
+                } else {
+                    imagejpeg($this->srcRes, $this->dstImagePath, self::$quality);
+                }
                 break;
         }
     }

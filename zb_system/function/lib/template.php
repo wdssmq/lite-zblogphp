@@ -87,6 +87,11 @@ class Template
      */
     public $template_dirname = 'template';
 
+    /**
+     * @var bool 是否已显示过了
+     */
+    public $isdisplayed = false;
+
     public function __construct()
     {
     }
@@ -213,7 +218,7 @@ class Template
             }
         }
         foreach ($this->templates as $name => $content) {
-            $s = RemoveBOM($this->CompileFile($content));
+            $s = RemoveBOM($this->CompileFile($content, $name));
             @file_put_contents($this->path . $name . '.php', $s);
         }
     }
@@ -319,10 +324,10 @@ class Template
      *
      * @return mixed
      */
-    public function CompileFile($content)
+    public function CompileFile($content, $filename = '')
     {
         foreach ($GLOBALS['hooks']['Filter_Plugin_Template_Compiling_Begin'] as $fpname => &$fpsignal) {
-            $fpreturn = $fpname($this, $content);
+            $fpreturn = $fpname($this, $content, $filename);
             if ($fpsignal == PLUGIN_EXITSIGNAL_RETURN) {
                 $fpsignal = PLUGIN_EXITSIGNAL_NONE;
 
@@ -709,6 +714,10 @@ class Template
         }
 
         include $file;
+
+        $this->isdisplayed = true;
+
+        return true;
     }
 
     /**
@@ -755,8 +764,6 @@ class Template
 
         $theme = $this->theme;
         $templates = array();
-        $templates_Name = array();
-        $templates_Type = array();
 
         // 读取预置模板
         $files = GetFilesInDir($zbp->systemdir . 'defend/default/', 'php');
@@ -785,14 +792,25 @@ class Template
             }
         }
 
+        $this->templates = $templates;
+        $this->LoadTemplateInfos();
+
+        return true;
+    }
+
+    /**
+     * 读取模板 Name 及 Type
+     */
+    public function LoadTemplateInfos()
+    {
+        $templates_Name = array();
+        $templates_Type = array();
         $this->template_json_file = null;
-        foreach ($templates as $key => $value) {
+        foreach ($this->templates as $key => $value) {
             $a = $this->GetTemplateNameAndType($key, $value);
             $templates_Name[$key] = $a[0];
             $templates_Type[$key] = $a[1];
         }
-
-        $this->templates = $templates;
         $this->templates_Name = $templates_Name;
         $this->templates_Type = $templates_Type;
 

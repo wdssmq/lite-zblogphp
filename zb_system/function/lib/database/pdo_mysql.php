@@ -20,7 +20,11 @@ class Database__PDO_MySQL implements Database__Interface
      */
     public $dbpre = null;
 
-    private $db = null; //数据库连接实例
+    protected $db = null; //数据库连接实例
+
+    private $isconnected = false; //是否已打开连接
+
+    private $ispersistent = false; //是否持久连接
 
     /**
      * @var string|null 数据库名
@@ -72,6 +76,9 @@ class Database__PDO_MySQL implements Database__Interface
      */
     public function Open($array)
     {
+        if ($this->isconnected) {
+            return true;
+        }
         /*$array=array(
         'dbmysql_server',
         'dbmysql_username',
@@ -82,7 +89,8 @@ class Database__PDO_MySQL implements Database__Interface
         'persistent',
         'engine',
          */
-        if ($array[6] == false) {
+        $this->ispersistent = $array[6];
+        if ($this->ispersistent == false) {
             $options = array();
         } else {
             $options = array(PDO::ATTR_PERSISTENT => true);
@@ -110,6 +118,7 @@ class Database__PDO_MySQL implements Database__Interface
             $this->collate = $c;
             $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
 
+            $this->isconnected = true;
             return true;
         } catch (PDOException $e) {
             return false;
@@ -143,6 +152,8 @@ class Database__PDO_MySQL implements Database__Interface
         $this->charset = $u;
         $this->collate = $c;
 
+        $this->isconnected = true;
+
         $s = "CREATE DATABASE IF NOT EXISTS {$dbmysql_name} DEFAULT CHARACTER SET {$u}";
         $r = $this->db->exec($this->sql->Filter($s));
         $this->LogsError();
@@ -158,7 +169,11 @@ class Database__PDO_MySQL implements Database__Interface
      */
     public function Close()
     {
+        if (!$this->isconnected) {
+            return;
+        }
         $this->db = null;
+        $this->isconnected = false;
     }
 
     /**
@@ -175,15 +190,18 @@ class Database__PDO_MySQL implements Database__Interface
 
     public function QueryMulti($s)
     {
+        $result = false;
         //$a=explode(';',str_replace('%pre%', $this->dbpre, $s));
         $a = explode(';', $s);
         foreach ($a as $s) {
             $s = trim($s);
             if ($s != '') {
-                $this->db->exec($this->sql->Filter($s));
+                $result = $this->db->exec($this->sql->Filter($s));
                 $this->LogsError();
             }
         }
+
+        return $result;
     }
 
     /**
@@ -271,6 +289,14 @@ class Database__PDO_MySQL implements Database__Interface
     }
 
     /**
+     * @return int
+     */
+    public function GetInsertId()
+    {
+        return $this->db->lastInsertId();
+    }
+
+    /**
      * @param $table
      * @param $datainfo
      */
@@ -284,6 +310,7 @@ class Database__PDO_MySQL implements Database__Interface
      */
     public function DelTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $this->QueryMulit($this->sql->DelTable($table));
     }
 
@@ -294,6 +321,7 @@ class Database__PDO_MySQL implements Database__Interface
      */
     public function ExistTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $a = $this->Query($this->sql->ExistTable($table, $this->dbname));
         if (!is_array($a)) {
             return false;
@@ -312,7 +340,7 @@ class Database__PDO_MySQL implements Database__Interface
         }
     }
 
-    private function LogsError()
+    protected function LogsError()
     {
         $e = trim($this->db->errorCode(), '0');
         if ($e != '') {
@@ -351,10 +379,10 @@ class Database__PDO_MySQL implements Database__Interface
     public function ExistColumn($table, $field)
     {
         $r = null;
-        ZBlogException::SuspendErrorHook();
+        ZbpErrorControl::SuspendErrorHook();
         $s = "SELECT column_name FROM information_schema.columns WHERE table_schema='$this->dbname' AND table_name = '$table' AND column_name = '$field'";
         $r = @$this->Query($s);
-        ZBlogException::ResumeErrorHook();
+        ZbpErrorControl::ResumeErrorHook();
         if (is_array($r) && count($r) == 0) {
             return false;
         }

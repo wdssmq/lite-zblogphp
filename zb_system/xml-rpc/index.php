@@ -826,7 +826,6 @@ function xmlrpc_ShowError($code, $file, $line, $httpcode = 401)
 {
     global $zbp;
     SetHttpStatusCode($httpcode);
-    ShowError($code, $file, $line);
     $zbp->ShowError($code, $file, $line);
 }
 
@@ -839,7 +838,7 @@ if (isset($zbp->option['ZC_XMLRPC_ENABLE']) && $zbp->option['ZC_XMLRPC_ENABLE'] 
     die;
 }
 
-Add_Filter_Plugin('Filter_Plugin_Zbp_ShowError', 'RespondError');
+Add_Filter_Plugin('Filter_Plugin_Debug_Handler_Common', 'RespondError');
 
 $zbp->CheckSiteClosed();
 

@@ -20,7 +20,11 @@ class Database__PDO_PostgreSQL implements Database__Interface
      */
     public $dbpre = null;
 
-    private $db = null; //数据库连接实例
+    protected $db = null; //数据库连接实例
+
+    private $isconnected = false; //是否已打开连接
+
+    private $ispersistent = false; //是否持久连接
 
     /**
      * @var string|null 数据库名
@@ -78,9 +82,13 @@ class Database__PDO_PostgreSQL implements Database__Interface
      */
     public function Open($array)
     {
+        if ($this->isconnected) {
+            return true;
+        }
         $array[3] = strtolower($array[3]);
         $s = "pgsql:host={$array[0]};port={$array[5]};dbname={$array[3]};user={$array[1]};password={$array[2]};options='--client_encoding=UTF8'";
-        if (false == $array[5]) {
+        $this->ispersistent = $array[6];
+        if (false == $this->ispersistent) {
             $db_link = new PDO($s);
         } else {
             $db_link = new PDO($s, null, null, array(PDO::ATTR_PERSISTENT => true));
@@ -91,7 +99,9 @@ class Database__PDO_PostgreSQL implements Database__Interface
         $myver = $this->db->getAttribute(PDO::ATTR_SERVER_VERSION);
         $this->version = SplitAndGet($myver, '-', 0);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
+        //$this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+        $this->isconnected = true;
         return true;
     }
 
@@ -110,6 +120,7 @@ class Database__PDO_PostgreSQL implements Database__Interface
         $this->dbname = $dbpgsql_name;
 
         //$db_link->query("SET client_encoding='UTF-8';");
+        $this->isconnected = true;
 
         $isExists = @$this->Query("select count(*) from pg_catalog.pg_database where datname = '$dbpgsql_name';");
         $hasDB = false;
@@ -135,7 +146,11 @@ class Database__PDO_PostgreSQL implements Database__Interface
      */
     public function Close()
     {
+        if (!$this->isconnected) {
+            return;
+        }
         $this->db = null;
+        $this->isconnected = false;
     }
 
     /**
@@ -152,15 +167,18 @@ class Database__PDO_PostgreSQL implements Database__Interface
 
     public function QueryMulti($s)
     {
+        $result = false;
         //$a=explode(';',str_replace('%pre%', $this->dbpre, $s));
         $a = explode(';', $s);
         foreach ($a as $s) {
             $s = trim($s);
             if ($s != '') {
-                $this->db->exec($this->sql->Filter($s));
+                $result = $this->db->exec($this->sql->Filter($s));
                 $this->LogsError();
             }
         }
+
+        return $result;
     }
 
     /**
@@ -222,8 +240,22 @@ class Database__PDO_PostgreSQL implements Database__Interface
         //$query=str_replace('%pre%', $this->dbpre, $query);
         $this->db->query($this->sql->Filter($query));
         $this->LogsError();
-        $seq = explode(' ', $query, 4);
-        $seq = $seq[2] . '_seq';
+        $id = null;
+        if (preg_match('/[\s]*INSERT[\s]+INTO[\s]+([\S]+)[\s]+/i', $query, $m) == 1) {
+            $seq = $m[1];
+            $seq = str_replace(array('"',"'"), '', $seq) . '_seq';
+            $id = $this->db->lastInsertId($seq);
+        }
+        return $id;
+    }
+
+    /**
+     * @return int
+     */
+    public function GetInsertId($table = null)
+    {
+        $seq = $table;
+        $seq = str_replace(array('"',"'"), '', $seq) . '_seq';
         $id = $this->db->lastInsertId($seq);
         return $id;
     }
@@ -242,6 +274,7 @@ class Database__PDO_PostgreSQL implements Database__Interface
      */
     public function DelTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $this->QueryMulit($this->sql->DelTable($table));
     }
 
@@ -252,6 +285,7 @@ class Database__PDO_PostgreSQL implements Database__Interface
      */
     public function ExistTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $a = $this->Query($this->sql->ExistTable($table, $this->dbname));
         if (!is_array($a)) {
             return false;
@@ -270,7 +304,7 @@ class Database__PDO_PostgreSQL implements Database__Interface
         }
     }
 
-    private function LogsError()
+    protected function LogsError()
     {
         $e = trim($this->db->errorCode(), '0');
         if ($e != '') {
@@ -311,10 +345,10 @@ class Database__PDO_PostgreSQL implements Database__Interface
         $r = null;
         $table = strtolower($table);
         $field = strtolower($field);
-        ZBlogException::SuspendErrorHook();
+        ZbpErrorControl::SuspendErrorHook();
         $s = "SELECT * FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '$table' AND column_name = '$field'";
         $r = @$this->Query($s);
-        ZBlogException::ResumeErrorHook();
+        ZbpErrorControl::ResumeErrorHook();
         if (is_array($r) && count($r) == 0) {
             return false;
         }

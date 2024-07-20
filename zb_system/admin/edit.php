@@ -93,9 +93,7 @@ require ZBP_PATH . 'zb_system/admin/admin_header.php';
 <script  src="../script/jquery.tagto.js"></script>
 <script  src="../script/jquery-ui-timepicker-addon.js"></script>
 <?php
-foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_Begin'] as $fpname => &$fpsignal) {
-    $fpname();
-}
+HookFilterPlugin('Filter_Plugin_Edit_Begin');
 ?>
 <?php
 require ZBP_PATH . 'zb_system/admin/admin_top.php';
@@ -108,9 +106,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
 
     <div class="SubMenu">
         <?php
-        foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_SubMenu'] as $fpname => &$fpsignal) {
-            $fpname();
-        }
+        HookFilterPlugin('Filter_Plugin_Edit_SubMenu');
         ?>
     </div>
     <div id="divMain2" class="edit post_edit">
@@ -119,9 +115,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                 <!-- 4号输出接口 -->
                 <div id="response4" class="editmod2">
                     <?php
-                    foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_Response4'] as $fpname => &$fpsignal) {
-                        $fpname();
-                    }
+                    HookFilterPlugin('Filter_Plugin_Edit_Response4');
                     ?>
                 </div>
                 <div id="divEditTitle" class="editmod2">
@@ -141,9 +135,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                 <!-- 5号输出接口 -->
                 <div id="response5" class="editmod2">
                     <?php
-                    foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_Response5'] as $fpname => &$fpsignal) {
-                        $fpname();
-                    }
+                    HookFilterPlugin('Filter_Plugin_Edit_Response5');
                     ?>
                 </div>
 
@@ -169,9 +161,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                 <!-- 1号输出接口 -->
                 <div id="response" class="editmod2">
                     <?php
-                    foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_Response'] as $fpname => &$fpsignal) {
-                        $fpname();
-                    }
+                    HookFilterPlugin('Filter_Plugin_Edit_Response');
                     ?>
                 </div>
 
@@ -203,7 +193,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                     </div>
                     <!-- )tags -->
 
-                    <div id="insertintro" class="editmod2" style="padding-top:0.5em;paddding-bottom:0.5em;">
+                    <div id="insertintro" class="editmod2" style="padding-top:0.5em;padding-bottom:0.5em;">
                         <span>* <?php echo $lang['msg']['help_generate_summary']; ?>
                             <a href="#" onClick="AutoIntro()">[<?php echo $lang['msg']['generate_summary']; ?>]</a></span></div>
                     <?php
@@ -233,9 +223,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                 <!-- 2号输出接口 -->
                 <div id="response2" class="editmod2">
                     <?php
-                    foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_Response2'] as $fpname => &$fpsignal) {
-                        $fpname();
-                    }
+                    HookFilterPlugin('Filter_Plugin_Edit_Response2');
                     ?>
                 </div>
 
@@ -248,7 +236,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                     <div id="divBox">
                         <div id="divFloat">
                             <div id='post' class="editmod">
-                                <input class="button" style="width:180px;height:38px;" type="submit" value="<?php echo $lang['msg']['submit']; ?>" id="btnPost" onclick='return checkArticleInfo();' />
+                                <input class="button" style="" type="submit" value="<?php echo $lang['msg']['submit']; ?>" id="btnPost" onclick='return checkArticleInfo();' />
                             </div>
                             <!-- cate -->
                             <?php
@@ -258,7 +246,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                                     <label for="cmbCateID" class="editinputname" style="max-width:65px;text-overflow:ellipsis;">
                                         <?php echo $lang['msg']['category']; ?>
                                     </label>
-                                    <select style="width:180px;" class="edit" size="1" name="CateID" id="cmbCateID">
+                                    <select style="" class="edit" size="1" name="CateID" id="cmbCateID">
                                         <?php echo OutputOptionItemsOfCategories($article->CateID, $article->Type); ?>
                                     </select>
                                 </div>
@@ -272,7 +260,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                                 <label for="cmbPostStatus" class="editinputname" style="max-width:65px;text-overflow:ellipsis;">
                                     <?php echo $lang['msg']['status']; ?>
                                 </label>
-                                <select class="edit" style="width:180px;" size="1" name="Status" id="cmbPostStatus" onChange="cmbPostStatus.value=this.options[this.selectedIndex].value">
+                                <select class="edit" style="" size="1" name="Status" id="cmbPostStatus" onChange="cmbPostStatus.value=this.options[this.selectedIndex].value">
                                     <?php echo OutputOptionItemsOfPostStatus($article->Status); ?>
                                 </select>
                             </div>
@@ -283,7 +271,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                                 <label for="cmbTemplate" class="editinputname" style="max-width:65px;text-overflow:ellipsis;">
                                     <?php echo $lang['msg']['template']; ?>
                                 </label>
-                                <select style="width:180px;" class="edit" size="1" name="Template" id="cmbTemplate" onChange="cmbTemplate.value=this.options[this.selectedIndex].value">
+                                <select style="" class="edit" size="1" name="Template" id="cmbTemplate" onChange="cmbTemplate.value=this.options[this.selectedIndex].value">
                                     <?php echo OutputOptionItemsOfTemplate($article->Template, array('index', '404', 'module', 'search', 'lm-'), array('single', $zbp->GetPostType($article->Type, 'name'))); ?>
                                 </select>
                             </div>
@@ -294,7 +282,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                                 <label for="cmbUser" class="editinputname" style="max-width:65px;text-overflow:ellipsis;">
                                     <?php echo $lang['msg']['author']; ?>
                                 </label>
-                                <select style="width:180px;" size="1" name="AuthorID" id="cmbUser" onChange="cmbUser.value=this.options[this.selectedIndex].value">
+                                <select style="" size="1" name="AuthorID" id="cmbUser" onChange="cmbUser.value=this.options[this.selectedIndex].value">
                                     <?php echo OutputOptionItemsOfMember($article->AuthorID, $article->Type); ?>
                                 </select>
                             </div>
@@ -305,7 +293,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                                 <label for="edtDateTime" class="editinputname" style="max-width:65px;text-overflow:ellipsis;">
                                     <?php echo $lang['msg']['date']; ?>
                                 </label>
-                                <input type="text" name="PostTime" id="edtDateTime" value="<?php echo $article->Time(); ?>" style="width:180px;" />
+                                <input type="text" name="PostTime" id="edtDateTime" value="<?php echo $article->Time(); ?>" style="" />
                             </div>
 
                             <!-- )newdatetime -->
@@ -350,9 +338,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                             <!-- 3号输出接口 -->
                             <div id="response3" class="editmod">
                                 <?php
-                                foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_Response3'] as $fpname => &$fpsignal) {
-                                    $fpname();
-                                }
+                                HookFilterPlugin('Filter_Plugin_Edit_Response3');
                                 ?>
                             </div>
                         </div>
@@ -403,9 +389,9 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                     },
                     barBtn: function(name, icon, callback) {
                         contentBarBtn.push({
-                            name,
-                            icon,
-                            callback
+                            name:name,
+                            icon:icon,
+                            callback:callback
                         });
                     },
                     ready: function(f){
@@ -428,9 +414,9 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
                     },
                     barBtn: function(name, icon, callback) {
                         introBarBtn.push({
-                            name,
-                            icon,
-                            callback
+                            name:name,
+                            icon:icon,
+                            callback:callback
                         });
                     },
                     ready: function(f){
@@ -684,9 +670,7 @@ require ZBP_PATH . 'zb_system/admin/admin_top.php';
     </script>
 
     <?php
-    foreach ($GLOBALS['hooks']['Filter_Plugin_Edit_End'] as $fpname => &$fpsignal) {
-        $fpname();
-    }
+    HookFilterPlugin('Filter_Plugin_Edit_End');
     ?>
 
     <script>

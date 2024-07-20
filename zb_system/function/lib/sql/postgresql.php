@@ -111,10 +111,14 @@ class SQL__PostgreSQL extends SQL__Global
                         $d1 = SplitAndGet($d, ',', 0);
                         $d2 = SplitAndGet($d, ',', 1);
                     }
-                    $sql[] = $value[0] . " decimal($d1,$d2) NOT NULL DEFAULT 0" . ',';
+                    $sql[] = $value[0] . " $value[1]($d1,$d2) NOT NULL DEFAULT 0" . ',';
                 }
                 if ($value[1] == 'date' || $value[1] == 'time') {
-                    $sql[] = $value[0] . " $value[1] NOT NULL,";
+                    if ($value[3] === null) {
+                        $sql[] = $value[0] . " $value[1] NULL,";
+                    } else {
+                        $sql[] = $value[0] . " $value[1] NOT NULL,";
+                    }
                 }
                 if ($value[1] == 'datetime') {
                     $sql[] = $value[0] . " time NOT NULL,";

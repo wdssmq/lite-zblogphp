@@ -227,7 +227,8 @@ return array(
         'admin_login'                       => '登入控制台',
         'top_index'                         => '首頁',
         'top_global'                        => '全域',
-        'top_category'                      => '分類',
+        'top_categorys'                     => '分類',
+        'top_category'                      => '本分類',
         'jump_comment'                      => '檢視迴響ID=',
         'year_suffix'                       => '年',
         'month_suffix'                      => '月',
@@ -255,7 +256,7 @@ return array(
         'comment_audit'                     => '審核迴響',
         'comment_audit_comment'             => '打開後所有非管理員發布的迴響都將進入審核狀態',
         'debugging_warning'                 => '您的Z-BlogPHP處於開發模式下。此模式下網站有被骇的風險，實際部署在線上的網站請及時關閉開發模式！',
-        'permanent_domain_with_admin'       => '後臺也使用永久域名',
+        'permanent_domain_is_enable'        => '永久域名功能已啟用',
         'current_template'                  => '當前模板',
         'additional_security'               => '安全增強',
         'using_cdn_guest_type'              => '客戶IP獲取来源',
@@ -283,6 +284,13 @@ return array(
         'category_legacy_display'           => '分類管理按傳統模式顯示',
         'change_default_password'           => '請立即更改默認密碼！',
         'delete_member_with_alldata'        => '刪除用戶同時刪除其文章和評論',
+        'api_display_count'                 => 'API頁顯示文章的數量',
+        'enable_login_csrfcheck'            => '啟用登入CSRF Token校驗',
+        'enable_login_verify'               => '啟用登入驗證碼功能',
+        'external_link_about_to_leave'      => '即將離開',
+        'external_link_info'                => '即將跳轉到外部網站。我們不對該網站的安全性和內容負責，請注意您的帳號和財產安全。',
+        'external_link_no_url_error'        => '您所訪問的頁面由於未知原因無法打開',
+        'external_link_continue'            => '繼續訪問',
         ''                                  => '',
     ),
 
@@ -515,7 +523,7 @@ return array(
         '63' => '禁止瀏覽草稿文章',
         '64' => '啟用失敗，該應用不適用於Z-BlogPHP。',
         '65' => 'Windows Phone用戶請先升級到Windows Phone 8.1再上傳檔案。',
-        '66' => '帳號和密碼不能為空',
+        '66' => '帳號和密碼或驗證碼不能為空',
         '67' => 'MySQL 資料庫無法連線',
         '68' => 'SQLite 資料庫无法打開',
         '69' => '未查詢到相關資料',
@@ -556,6 +564,9 @@ return array(
 
     'offical_urls' => array(
         'more_help' => 'https://www.zblogcn.com/help/?id={%id%}&message={%message%}',
+        'bing_help' => 'https://cn.bing.com/search?q={%message%}',
+        'office_docs' => 'https://docs.zblogcn.com/php/#/books/start-25-faq',
+        'office_bbs' => 'https://bbs.zblogcn.com/',
     ),
 
     // Possible causes of the error

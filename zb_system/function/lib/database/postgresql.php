@@ -20,7 +20,11 @@ class Database__PostgreSQL implements Database__Interface
      */
     public $dbpre = null;
 
-    private $db = null; //数据库连接
+    protected $db = null; //数据库连接
+
+    private $isconnected = false; //是否已打开连接
+
+    private $ispersistent = false; //是否持久连接
 
     /**
      * @var string|null 数据库名
@@ -33,12 +37,12 @@ class Database__PostgreSQL implements Database__Interface
     public $sql = null;
 
     /**
-     * @var 字符集
+     * @var string 字符集
      */
     public $charset = 'utf8';
 
     /**
-     * @var 字符排序
+     * @var string 字符排序
      */
     public $collate = null;
 
@@ -53,15 +57,13 @@ class Database__PostgreSQL implements Database__Interface
     /**
      * 对字符串进行转义，在指定的字符前添加反斜杠，即执行addslashes函数.
      *
-     * @use addslashes
-     *
      * @param string $s
      *
      * @return string
      */
     public function EscapeString($s)
     {
-        return pg_escape_string($s);
+        return pg_escape_string($this->db, $s);
     }
 
     /**
@@ -82,9 +84,13 @@ class Database__PostgreSQL implements Database__Interface
      */
     public function Open($array)
     {
+        if ($this->isconnected) {
+            return true;
+        }
         $array[3] = strtolower($array[3]);
         $s = "host={$array[0]} port={$array[5]} dbname={$array[3]} user={$array[1]} password={$array[2]} options='--client_encoding=UTF8'";
-        if (false == $array[5]) {
+        $this->ispersistent = $array[6];
+        if (!$this->ispersistent) {
             $db_link = pg_connect($s);
         } else {
             $db_link = pg_pconnect($s);
@@ -104,6 +110,7 @@ class Database__PostgreSQL implements Database__Interface
                 $this->version = $v['server'];
             }
 
+            $this->isconnected = true;
             return true;
         }
     }
@@ -122,18 +129,17 @@ class Database__PostgreSQL implements Database__Interface
         $this->db = pg_connect($s);
         $this->dbname = $dbpgsql_name;
 
+        $this->isconnected = true;
 
         $isExists = @$this->Query("select count(*) from pg_catalog.pg_database where datname = '$dbpgsql_name';");
         $hasDB = false;
         if (is_array($isExists) && is_array($isExists[0]) && isset($isExists[0]['count'])) {
-            if ($isExists[0]['count'] == '0') {
-                $hasDB = false;
-            } else {
+            if ($isExists[0]['count'] != '0') {
                 $hasDB = true;
             }
         }
 
-        if ($hasDB == true) {
+        if ($hasDB) {
             return false;
         }
 
@@ -147,8 +153,17 @@ class Database__PostgreSQL implements Database__Interface
      */
     public function Close()
     {
+        if (!$this->isconnected) {
+            return;
+        }
+        $this->isconnected = false;
+        if ($this->ispersistent == true) {
+            $this->db = null;
+            return;
+        }
         if (is_resource($this->db)) {
             pg_close($this->db);
+            $this->db = null;
         }
     }
 
@@ -166,15 +181,18 @@ class Database__PostgreSQL implements Database__Interface
 
     public function QueryMulti($s)
     {
+        $result = false;
         //$a=explode(';',str_replace('%pre%', $this->dbpre,$s));
         $a = explode(';', $s);
         foreach ($a as $s) {
             $s = trim($s);
             if ($s != '') {
-                $r = pg_query($this->db, $this->sql->Filter($s));
+                $result = pg_query($this->db, $this->sql->Filter($s));
                 $this->LogsError();
             }
         }
+
+        return $result;
     }
 
     /**
@@ -188,22 +206,22 @@ class Database__PostgreSQL implements Database__Interface
     {
         //$query=str_replace('%pre%', $this->dbpre, $query);
         $results = @pg_query($this->db, $this->sql->Filter($query));
-        if (is_resource($results)) {
-            $st = pg_result_status($results);
-            if ($st == PGSQL_BAD_RESPONSE || $st == PGSQL_NONFATAL_ERROR || $st == PGSQL_FATAL_ERROR) {
-                trigger_error(pg_result_error($results), E_USER_NOTICE);
-            }
-        } else {
-            trigger_error(pg_last_error($this->db), E_USER_NOTICE);
+
+        $st = pg_result_status($results);
+        if ($st == PGSQL_BAD_RESPONSE || $st == PGSQL_NONFATAL_ERROR || $st == PGSQL_FATAL_ERROR) {
+            trigger_error(pg_result_error($results), E_USER_NOTICE);
         }
+
         $this->LogsError();
         $data = array();
-        if (is_resource($results)) {
+
+        if (!is_resource($results) && !is_object($results)) {
+            return $data;
+        }
+        if (is_resource($results) || is_object($results)) {
             while ($row = pg_fetch_assoc($results)) {
                 $data[] = $row;
             }
-        } else {
-            $data[] = $results;
         }
 
         return $data;
@@ -214,7 +232,7 @@ class Database__PostgreSQL implements Database__Interface
      *
      * @param string $query SQL语句
      *
-     * @return resource
+     * @return mixed
      */
     public function Update($query)
     {
@@ -229,7 +247,7 @@ class Database__PostgreSQL implements Database__Interface
      *
      * @param string $query SQL语句
      *
-     * @return resource
+     * @return mixed
      */
     public function Delete($query)
     {
@@ -251,16 +269,28 @@ class Database__PostgreSQL implements Database__Interface
         //$query=str_replace('%pre%', $this->dbpre, $query);
         pg_query($this->db, $this->sql->Filter($query));
         $this->LogsError();
-        $seq = explode(' ', $query);
-        $seq = $seq[3];
-        $seq = trim($seq);
-        //$seq = 'select lastval();';
-        $seq = "select currval('{$seq}_seq'::regclass)";
+        $id = null;
+        if (preg_match('/[\s]*INSERT[\s]+INTO[\s]+([\S]+)[\s]+/i', $query, $m) == 1) {
+            $seq = $m[1];
+            $seq = str_replace(array('"',"'"), '', $seq) . '_seq';
+            $query = "select currval('{$seq}'::regclass)";
+            $r = pg_query($this->db, $query);
+            $id = (int) pg_fetch_result($r, 0, 0);
+        }
+        return $id;
+    }
 
-        $r = pg_query($this->db, $seq);
-        $id = pg_fetch_result($r, 0, 0);
-
-        return (int) $id;
+    /**
+     * @return int
+     */
+    public function GetInsertId($table = null)
+    {
+        $seq = $table;
+        $seq = str_replace(array('"',"'"), '', $seq) . '_seq';
+        $query = "select currval('{$seq}'::regclass)";
+        $r = pg_query($this->db, $query);
+        $id = (int) pg_fetch_result($r, 0, 0);
+        return $id;
     }
 
     /**
@@ -281,6 +311,7 @@ class Database__PostgreSQL implements Database__Interface
      */
     public function DelTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $this->QueryMulit($this->sql->DelTable($table));
     }
 
@@ -293,6 +324,7 @@ class Database__PostgreSQL implements Database__Interface
      */
     public function ExistTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $a = $this->Query($this->sql->ExistTable($table, $this->dbname));
         if (!is_array($a)) {
             return false;
@@ -311,9 +343,12 @@ class Database__PostgreSQL implements Database__Interface
         }
     }
 
-    private function LogsError()
+    protected function LogsError()
     {
-        $this->error[] = array(PGSQL_BAD_RESPONSE, pg_last_error($this->db));
+        $e = pg_last_error($this->db);
+        if (!empty($e)) {
+            $this->error[] = array(PGSQL_BAD_RESPONSE, $e);
+        }
     }
 
     /**
@@ -321,7 +356,7 @@ class Database__PostgreSQL implements Database__Interface
      *
      * @param string $query 指令
      *
-     * @return bool
+     * @return array
      */
     public function Transaction($query)
     {
@@ -341,10 +376,10 @@ class Database__PostgreSQL implements Database__Interface
         $r = null;
         $table = strtolower($table);
         $field = strtolower($field);
-        ZBlogException::SuspendErrorHook();
+        ZbpErrorControl::SuspendErrorHook();
         $s = "SELECT * FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '$table' AND column_name = '$field'";
         $r = @$this->Query($s);
-        ZBlogException::ResumeErrorHook();
+        ZbpErrorControl::ResumeErrorHook();
         if (is_array($r) && count($r) == 0) {
             return false;
         }

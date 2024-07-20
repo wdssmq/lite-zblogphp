@@ -39,7 +39,8 @@ function api_member_login()
         $zbp->user = $member;
         $sd = (float) GetVars('savedate', 'POST');
         $sd = ($sd < 1) ? 1 : $sd;
-        $sdt = (time() + 3600 * 24 * $sd);
+        $sd = ($sd > 365) ? 365 : $sd;
+        $sdt = (int) (time() + 3600 * 24 * $sd);
 
         foreach ($GLOBALS['hooks']['Filter_Plugin_VerifyLogin_Succeed'] as $fpname => &$fpsignal) {
             $fpname();
@@ -150,13 +151,15 @@ function api_member_get()
 {
     global $zbp;
 
-    ApiCheckAuth(true, 'MemberPst');
-
     $member = null;
     $memberId = GetVars('id');
 
     if ($memberId !== null) {
         $member = $zbp->GetMemberByID($memberId);
+        ApiCheckAuth(true, 'MemberMng');
+    } else {
+        $member = $zbp->GetMemberByID($zbp->user->ID);
+        ApiCheckAuth(false, 'api');
     }
 
     //如果不是读本人的
@@ -195,7 +198,7 @@ function api_member_delete()
 
     ApiVerifyCSRF(true);
 
-    if ($zbp->GetMemberByID((int) GetVars('id', 'GET'))->ID == 0) {
+    if ($zbp->GetMemberByID((int) GetVars('id'))->ID == 0) {
         return array(
             'code' => 404,
             'message' => $GLOBALS['lang']['error']['97'],
@@ -287,7 +290,7 @@ function api_member_get_auth()
     foreach ($GLOBALS['actions'] as $key => $value) {
         if ($zbp->CheckRights($key)) {
             $authArr['auth'][$key] = array(
-                'description' => $zbp->GetActionDescription($key),
+                'name' => $zbp->GetActionName($key),
                 'checked' => $zbp->CheckRights($key) ? true : false
             );
         }

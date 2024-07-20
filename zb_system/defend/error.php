@@ -1,23 +1,26 @@
 <?php
-define('ZBP_ERRORPROCESSING', true);
+defined('ZBP_ERRORPROCESSING') || define('ZBP_ERRORPROCESSING', true);
 if (!isset($GLOBALS['zbp'])) {
-    exit;
+    //exit;
+    $GLOBALS['zbp'] = new stdClass();
+    $GLOBALS['zbp']->isdebug = (defined('ZBP_DEBUGMODE')) ? true : false;
 }
 $post_data = $_COOKIE;
 foreach ($post_data as $key => $value) {
-    if(stripos($key, 'username') !== false) {
+    if (stripos($key, 'username') !== false) {
         unset($post_data[$key]);
     }
-    if(stripos($key, 'password') !== false) {
+    if (stripos($key, 'password') !== false) {
         unset($post_data[$key]);
     }
-    if(stripos($key, 'token') !== false) {
+    if (stripos($key, 'token') !== false) {
         unset($post_data[$key]);
     }
 }
 unset($post_data['username']);
 unset($post_data['password']);
 unset($post_data['token']);
+unset($post_data['addinfo']);
 ?>
 <!doctype html>
 <html lang="<?php echo $GLOBALS['lang']['lang_bcp47']; ?>">
@@ -26,6 +29,8 @@ unset($post_data['token']);
     <meta name="robots" content="noindex,nofollow,noarchive" />
     <meta name="generator" content="<?php echo $GLOBALS['option']['ZC_BLOG_PRODUCT_FULL']; ?>"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <meta name="renderer" content="webkit" />
+    <meta name="viewport" content="width=device-width,viewport-fit=cover" />
     <title><?php echo $GLOBALS['blogname'] . '-' . $GLOBALS['lang']['msg']['error']; ?></title>
     <link rel="stylesheet" href="<?php echo $GLOBALS['bloghost']; ?>zb_system/css/admin.css?<?php echo $GLOBALS['blogversion']; ?>" type="text/css" media="screen"/>
     <script src="<?php echo $GLOBALS['bloghost']; ?>zb_system/script/common.js?<?php echo $GLOBALS['blogversion']; ?>"></script>
@@ -44,10 +49,10 @@ unset($post_data['token']);
         <div class="login loginw">
             <form id="frmLogin" method="post" action="#">
                 <?php
-                if (!$GLOBALS['option']['ZC_DEBUG_MODE']) {
+                if (!$GLOBALS['zbp']->isdebug) {
                     ?>
                     <div class="divHeader lessinfo" style="margin-bottom:10px;">
-                        <b><?php echo FormatString($error->message, '[noscript]'); ?></b></div>
+                        <b><?php echo FormatString($error->getMessage(), '[noscript]'); ?></b></div>
                     <div class="content lessinfo">
                         <div>
                             <p style="font-weight: normal;"><?php echo $GLOBALS['lang']['msg']['possible_causes_error']; ?></p>
@@ -58,7 +63,7 @@ unset($post_data['token']);
                 }
                 ?>
     <?php
-    if ($GLOBALS['option']['ZC_DEBUG_MODE']) {
+    if ($GLOBALS['zbp']->isdebug) {
         ?>
                     <div class="divHeader moreinfo"
                          style="margin-bottom:10px;"><?php echo $GLOBALS['lang']['msg']['error_tips']; ?></div>
@@ -66,25 +71,26 @@ unset($post_data['token']);
                         <div>
                             <p><?php echo $GLOBALS['lang']['msg']['error_info']; ?></p>
         <?php
-        echo '(' . $error->type . ')' . $error->typeName . ' :   ' . (FormatString($error->messagefull, '[noscript]'));
+        echo '[' . $error->getType() . '] (' . $error->getCode() . ') :   ' . (FormatString($error->getMessageFull(), '[noscript]'));
         echo ' (' . ZC_VERSION_FULL . ') ';
         if (!in_array('Status: 404 Not Found', headers_list())) {
-                echo '(' . GetEnvironment() . ') ';
+                echo '(' . GetEnvironment(true) . ') ';
         }
         ?>
                         </div>
         <?php
-        if (is_array(ZBlogException::$error_debuginfo) && !empty(ZBlogException::$error_debuginfo)) {
-        ?>
+        $moreinfo = $error->getMoreInfo();
+        if (is_array($moreinfo) && !empty($moreinfo)) {
+            ?>
                         <div>
-                            <p><?php echo 'Debug Info'; ?></p>
+                            <p><?php echo 'Debug More Info'; ?></p>
 
                             <table style="width: 100%" class="table_striped">
                                 <tbody>
 
                     <?php
                     $i = 0;
-                    foreach (ZBlogException::$error_debuginfo as $key => $value) {
+                    foreach ($moreinfo as $key => $value) {
                         $i += 1;
                         ?>
                                     <tr>
@@ -98,23 +104,23 @@ unset($post_data['token']);
                                 </tbody>
                             </table>
                         </div>
-        <?php
+            <?php
         }
         ?>
 
                         <div>
                             <p><?php echo $GLOBALS['lang']['msg']['file_line']; ?></p>
-                            <i><?php echo $error->file; ?></i><br/>
+                            <i><?php echo $error->getFile(); ?></i><br/>
                             <table style="width: 100%" class="table_striped">
                                 <tbody>
 
                     <?php
-                    $aFile = $error->get_code($error->file, $error->line);
+                    $aFile = $error->get_code($error->getFile(), $error->getLine());
                     foreach ($aFile as $iInt => $sData) {
                         ?>
                                     <tr>
-                                        <td style='width:50px' <?php echo ($iInt + 1) == $error->line ? ' class="bg-lightcolor"' : ''; ?> ><?php echo ($iInt + 1); ?></td>
-                                        <td <?php echo ($iInt + 1) == $error->line ? ' class="bg-lightcolor"' : ''; ?> ><?php echo $sData; ?></td>
+                                        <td style='width:50px' <?php echo ($iInt + 1) == $error->getLine() ? ' class="bg-lightcolor"' : ''; ?> ><?php echo ($iInt + 1); ?></td>
+                                        <td <?php echo ($iInt + 1) == $error->getLine() ? ' class="bg-lightcolor"' : ''; ?> ><?php echo $sData; ?></td>
                                     </tr>
                                     <?php
                     }
@@ -128,7 +134,7 @@ unset($post_data['token']);
                             <table style='width:100%' class="table_striped">
                                 <tbody>
                     <?php
-                    foreach (debug_backtrace() as $iInt => $sData) {
+                    foreach ($error->getTrace() as $iInt => $sData) {
                         if ($iInt <= 2) { // 不显示错误捕捉部分
                             continue;
                         }
@@ -198,6 +204,28 @@ unset($post_data['token']);
                                     <?php
                                 }
                                 ?>
+
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>
+                            <p><?php echo 'Error List'; ?></p>
+                            <table style="width: 100%" class="table_striped">
+                                <tbody>
+
+                    <?php
+                    $error_list = ZbpErrorControl::GetErrorList();
+                    $i = 0;
+                    foreach ($error_list as $key => $value) {
+                        $i += 1;
+                        ?>
+                                    <tr>
+                                        <td style='width:50px;'><?php echo $key; ?></td>
+                                        <td><?php echo htmlspecialchars(var_export($value, true)); ?></td>
+                                    </tr>
+                                    <?php
+                    }
+                    ?>
 
                                 </tbody>
                             </table>

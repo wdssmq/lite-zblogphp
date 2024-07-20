@@ -20,7 +20,11 @@ class Database__MySQLi implements Database__Interface
      */
     public $dbpre = null;
 
-    private $db = null; //数据库连接实例
+    protected $db = null; //数据库连接实例
+
+    private $isconnected = false; //是否已打开连接
+
+    private $ispersistent = false; //是否持久连接
 
     /**
      * @var string|null 数据库名
@@ -85,9 +89,13 @@ class Database__MySQLi implements Database__Interface
      */
     public function Open($array)
     {
+        if ($this->isconnected) {
+            return true;
+        }
         $db = mysqli_init();
 
-        if ($array[6] == true) {
+        $this->ispersistent = $array[6];
+        if ($this->ispersistent == true) {
             $array[0] = 'p:' . $array[0];
         }
 
@@ -117,6 +125,7 @@ class Database__MySQLi implements Database__Interface
             $this->dbpre = $array[4];
             $this->dbengine = $array[7];
 
+            $this->isconnected = true;
             return true;
         }
 
@@ -158,6 +167,8 @@ class Database__MySQLi implements Database__Interface
         $this->db = $db;
         $this->dbname = $dbmysql_name;
 
+        $this->isconnected = true;
+
         $s = "CREATE DATABASE IF NOT EXISTS {$dbmysql_name} DEFAULT CHARACTER SET {$u}";
         $r = mysqli_query($this->db, $this->sql->Filter($s));
         $this->LogsError();
@@ -173,6 +184,14 @@ class Database__MySQLi implements Database__Interface
      */
     public function Close()
     {
+        if (!$this->isconnected) {
+            return;
+        }
+        $this->isconnected = false;
+        if ($this->ispersistent == true) {
+            $this->db = null;
+            return;
+        }
         if (is_object($this->db)) {
             mysqli_close($this->db);
             $this->db = null;
@@ -183,8 +202,6 @@ class Database__MySQLi implements Database__Interface
      * 执行多行SQL语句.
      *
      * @param string $s 以;号分隔的多条SQL语句
-     *
-     * @return array
      */
     public function QueryMulit($s)
     {
@@ -195,15 +212,18 @@ class Database__MySQLi implements Database__Interface
 
     public function QueryMulti($s)
     {
+        $result = false;
         //$a=explode(';',str_replace('%pre%', $this->dbpre, $s));
         $a = explode(';', $s);
         foreach ($a as $s) {
             $s = trim($s);
             if ($s != '') {
-                mysqli_query($this->db, $this->sql->Filter($s));
+                $result = mysqli_query($this->db, $this->sql->Filter($s));
                 $this->LogsError();
             }
         }
+
+        return $result;
     }
 
     /**
@@ -285,6 +305,14 @@ class Database__MySQLi implements Database__Interface
     }
 
     /**
+     * @return int
+     */
+    public function GetInsertId()
+    {
+        return mysqli_insert_id($this->db);
+    }
+
+    /**
      * @param $table
      * @param $datainfo
      */
@@ -298,6 +326,7 @@ class Database__MySQLi implements Database__Interface
      */
     public function DelTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $this->QueryMulit($this->sql->DelTable($table));
     }
 
@@ -308,6 +337,7 @@ class Database__MySQLi implements Database__Interface
      */
     public function ExistTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $a = $this->Query($this->sql->ExistTable($table, $this->dbname));
         $this->LogsError();
         if (!is_array($a)) {
@@ -327,7 +357,7 @@ class Database__MySQLi implements Database__Interface
         }
     }
 
-    private function LogsError()
+    protected function LogsError()
     {
         $e = mysqli_errno($this->db);
         if ($e != 0) {
@@ -340,7 +370,7 @@ class Database__MySQLi implements Database__Interface
      *
      * @param string $query 指令
      *
-     * @return bool
+     * @return array
      */
     public function Transaction($query)
     {
@@ -358,10 +388,10 @@ class Database__MySQLi implements Database__Interface
     public function ExistColumn($table, $field)
     {
         $r = null;
-        ZBlogException::SuspendErrorHook();
+        ZbpErrorControl::SuspendErrorHook();
         $s = "SELECT column_name FROM information_schema.columns WHERE table_schema='$this->dbname' AND table_name = '$table' AND column_name = '$field'";
         $r = @$this->Query($s);
-        ZBlogException::ResumeErrorHook();
+        ZbpErrorControl::ResumeErrorHook();
         if (is_array($r) && count($r) == 0) {
             return false;
         }

@@ -14,33 +14,25 @@ require 'function/c_system_base.php';
 
 $zbp->Load();
 
-if (!$GLOBALS['option']['ZC_API_ENABLE']) {
-    ApiResponse(null, null, 503, $GLOBALS['lang']['error']['95']);
-}
+ApiCheckEnable();
 
-foreach ($GLOBALS['hooks']['Filter_Plugin_API_Begin'] as $fpname => &$fpsignal) {
-    $fpname();
-}
+HookFilterPlugin('Filter_Plugin_API_Begin');
 
 ApiCheckAuth(false, 'api');
 
-if ($GLOBALS['option']['ZC_API_THROTTLE_ENABLE']) {
-    ApiThrottle('default', $GLOBALS['option']['ZC_API_THROTTLE_MAX_REQS_PER_MIN'] ? $GLOBALS['option']['ZC_API_THROTTLE_MAX_REQS_PER_MIN'] : 60);
-}
+ApiCheckLimit();
 
-$mods = array();
-
-// 载入系统和应用的 mod
-ApiLoadMods($mods);
-
+$mods = &$GLOBALS['api_public_mods'];
+$mods_allow = &$GLOBALS['api_allow_mods_rule']; //格式为 array( array('模块名'=>'方法名') )
+$mods_disallow = &$GLOBALS['api_disallow_mods_rule']; //如果是 array( array('模块名'=>'') )方法名为空将匹配整个模块
 $mod = strtolower(GetVars('mod', 'GET'));
 $act = strtolower(GetVars('act', 'GET'));
 
-$mods_allow = array(); //格式为 [] = array('模块名'=>'方法名')
-$mods_disallow = array(); //如果是 [] = array('模块名'=>'') 方法名为空将匹配整个模块
+// 载入系统和应用的 mod
+ApiLoadMods();
 
-//进行Api白名单和黑名单的检查
-ApiListCheck($mods_allow, $mods_disallow);
+//进行Api白名单和黑名单的设置并检查$mod和$act
+ApiCheckMods();
 
 ApiLoadPostData();
 

@@ -20,7 +20,11 @@ class Database__MySQL implements Database__Interface
      */
     public $dbpre = null;
 
-    private $db = null; //数据库连接
+    protected $db = null; //数据库连接
+
+    private $isconnected = false; //是否已打开连接
+
+    private $ispersistent = false; //是否持久连接
 
     /**
      * @var string|null 数据库名
@@ -46,19 +50,17 @@ class Database__MySQL implements Database__Interface
     }
 
     /**
-     * @var 字符集
+     * @var string 字符集
      */
     public $charset = 'utf8';
 
     /**
-     * @var 字符排序
+     * @var null|string 字符排序
      */
     public $collate = null;
 
     /**
      * 对字符串进行转义，在指定的字符前添加反斜杠，即执行addslashes函数.
-     *
-     * @use addslashes
      *
      * @param string $s
      *
@@ -87,7 +89,11 @@ class Database__MySQL implements Database__Interface
      */
     public function Open($array)
     {
-        if ($array[6] == false) {
+        if ($this->isconnected) {
+            return true;
+        }
+        $this->ispersistent = $array[6];
+        if ($this->ispersistent == false) {
             $db = @mysql_connect($array[0] . ':' . $array[5], $array[1], $array[2]);
         } else {
             $db = @mysql_pconnect($array[0] . ':' . $array[5], $array[1], $array[2]);
@@ -122,6 +128,7 @@ class Database__MySQL implements Database__Interface
             $this->dbname = $array[3];
             $this->dbengine = $array[7];
 
+            $this->isconnected = true;
             return true;
         } else {
             $this->Close();
@@ -165,8 +172,11 @@ class Database__MySQL implements Database__Interface
         $this->db = $db;
         $this->dbname = $dbmysql_name;
 
+        $this->isconnected = true;
+
         $s = "CREATE DATABASE IF NOT EXISTS {$dbmysql_name} DEFAULT CHARACTER SET {$u}";
         $r = mysql_query($this->sql->Filter($s), $this->db);
+
         $this->LogsError();
         if ($r === false) {
             return false;
@@ -180,6 +190,14 @@ class Database__MySQL implements Database__Interface
      */
     public function Close()
     {
+        if (!$this->isconnected) {
+            return;
+        }
+        $this->isconnected = false;
+        if ($this->ispersistent == true) {
+            $this->db = null;
+            return;
+        }
         if (is_resource($this->db)) {
             mysql_close($this->db);
             $this->db = null;
@@ -200,6 +218,7 @@ class Database__MySQL implements Database__Interface
 
     public function QueryMulti($s)
     {
+        $result = false;
         //$a=explode(';',str_replace('%pre%', $this->dbpre,$s));
         $a = explode(';', $s);
         foreach ($a as $s) {
@@ -209,6 +228,8 @@ class Database__MySQL implements Database__Interface
                 $this->LogsError();
             }
         }
+
+        return $result;
     }
 
     /**
@@ -257,7 +278,7 @@ class Database__MySQL implements Database__Interface
      *
      * @param string $query SQL语句
      *
-     * @return resource
+     * @return mixed
      */
     public function Update($query)
     {
@@ -272,7 +293,7 @@ class Database__MySQL implements Database__Interface
      *
      * @param string $query SQL语句
      *
-     * @return resource
+     * @return mixed
      */
     public function Delete($query)
     {
@@ -298,6 +319,14 @@ class Database__MySQL implements Database__Interface
     }
 
     /**
+     * @return int
+     */
+    public function GetInsertId()
+    {
+        return mysql_insert_id($this->db);
+    }
+
+    /**
      * 新建表.
      *
      * @param string $tablename 表名
@@ -315,6 +344,7 @@ class Database__MySQL implements Database__Interface
      */
     public function DelTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $this->QueryMulit($this->sql->DelTable($table));
     }
 
@@ -327,6 +357,7 @@ class Database__MySQL implements Database__Interface
      */
     public function ExistTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $a = $this->Query($this->sql->ExistTable($table, $this->dbname));
         if (!is_array($a)) {
             return false;
@@ -345,7 +376,7 @@ class Database__MySQL implements Database__Interface
         }
     }
 
-    private function LogsError()
+    protected function LogsError()
     {
         $e = mysql_errno($this->db);
         if ($e != 0) {
@@ -358,7 +389,7 @@ class Database__MySQL implements Database__Interface
      *
      * @param string $query 指令
      *
-     * @return bool
+     * @return array
      */
     public function Transaction($query)
     {
@@ -376,10 +407,10 @@ class Database__MySQL implements Database__Interface
     public function ExistColumn($table, $field)
     {
         $r = null;
-        ZBlogException::SuspendErrorHook();
+        ZbpErrorControl::SuspendErrorHook();
         $s = "SELECT column_name FROM information_schema.columns WHERE table_schema='$this->dbname' AND table_name = '$table' AND column_name = '$field'";
         $r = @$this->Query($s);
-        ZBlogException::ResumeErrorHook();
+        ZbpErrorControl::ResumeErrorHook();
         if (is_array($r) && count($r) == 0) {
             return false;
         }

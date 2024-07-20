@@ -65,12 +65,17 @@ function api_upload_get()
  */
 function api_upload_post()
 {
+    global $zbp;
     ApiCheckAuth(true, 'UploadPst');
 
     try {
         $upload = PostUpload();
 
-        $array = ApiGetObjectArray($upload);
+        if ($upload == false) {
+            throw new Exception($zbp->lang['error'][21]);
+        }
+
+        $array = ApiGetObjectArray($upload, array('Url'));
 
         return array(
             'message' => $GLOBALS['lang']['msg']['operation_succeed'],

@@ -13,7 +13,7 @@ if ((isset($_REQUEST['act']) && $_REQUEST['act'] == 'ajax') || (isset($_SERVER['
     define('ZBP_IN_AJAX', true);
 }
 
-require './function/c_system_base.php';
+require 'function/c_system_base.php';
 
 $action = GetVars('act', 'GET');
 
@@ -24,50 +24,47 @@ if (!$zbp->CheckRights($zbp->action)) {
     die();
 }
 
-foreach ($GLOBALS['hooks']['Filter_Plugin_Cmd_Begin'] as $fpname => &$fpsignal) {
-    $fpname();
-}
+HookFilterPlugin('Filter_Plugin_Cmd_Begin');
 
 switch ($zbp->action) {
     case 'login':
-        Redirect_to_inside(GetVars('redirect', 'GET'));
+        Redirect_cmd_from_args_with_loggedin(GetVars('redirect', 'GET'));
         if ($zbp->CheckRights('admin')) {
-            Redirect('admin/index.php?act=admin');
+            Redirect_cmd_end('admin/index.php?act=admin');
         }
         if (empty($zbp->user->ID) && GetVars('redirect', 'GET')) {
             setcookie("redirect", GetVars('redirect', 'GET'), 0, $zbp->cookiespath);
         }
-        Redirect('login.php');
+        Redirect_cmd_end('login.php');
         break;
     case 'logout':
         CheckIsRefererValid();
         Logout();
-        Redirect('../');
+        Redirect_cmd_end('../');
         break;
     case 'admin':
-        Redirect('admin/index.php?act=admin');
+        Redirect_cmd_end('admin/index.php?act=admin');
         break;
     case 'verify':
-        // 考虑兼容原因，此处不加CSRF验证。logout加的原因是主题的退出无大碍。
-        if (VerifyLogin()) {
-            Redirect_to_inside(GetVars('redirect', 'COOKIE'));
-            Redirect('admin/index.php?act=admin');
+        if (VerifyLogin(true, false, false)) {
+            Redirect_cmd_from_args_with_loggedin(GetVars('redirect', 'COOKIE'));
+            Redirect_cmd_end('admin/index.php?act=admin');
         } else {
-            Redirect('../');
+            Redirect_cmd_end('../');
         }
         break;
     case 'search':
-        Redirect_to_search();
+        Redirect_cmd_to_search();
         break;
     case 'cmt':
         $die = false;
         if (GetVars('isajax', 'POST')) {
             // 兼容老版本的评论前端
-            Add_Filter_Plugin('Filter_Plugin_Zbp_ShowError', 'RespondError', PLUGIN_EXITSIGNAL_RETURN);
+            Add_Filter_Plugin('Filter_Plugin_Debug_Handler_Common', 'RespondError', PLUGIN_EXITSIGNAL_RETURN);
             $die = true;
         } elseif (GetVars('format', 'POST') == "json") {
             // 1.5之后的评论以json形式加载给前端
-            Add_Filter_Plugin('Filter_Plugin_Zbp_ShowError', 'JsonError4ShowErrorHook', PLUGIN_EXITSIGNAL_RETURN);
+            Add_Filter_Plugin('Filter_Plugin_Debug_Handler_Common', 'JsonError4ShowErrorHook', PLUGIN_EXITSIGNAL_RETURN);
             $die = true;
         }
         PostComment();
@@ -77,14 +74,14 @@ switch ($zbp->action) {
         if ($die) {
             exit;
         } else {
-            Redirect(GetVars('HTTP_REFERER', 'SERVER'));
+            Redirect_cmd_end(GetVars('HTTP_REFERER', 'SERVER'));
         }
         break;
     case 'getcmt':
         ViewComments((int) GetVars('postid', 'GET'), (int) GetVars('page', 'GET'));
         break;
     case 'ArticleEdt':
-        Redirect('admin/edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'ArticleDel':
         CheckIsRefererValid();
@@ -92,10 +89,10 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=ArticleMng');
+        Redirect_cmd_end('cmd.php?act=ArticleMng');
         break;
     case 'ArticleMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'ArticlePst':
         $zbp->csrfExpiration = 48;
@@ -105,10 +102,10 @@ switch ($zbp->action) {
         $zbp->SaveCache();
         $zbp->SetHint('good');
         echo '<script>localStorage.removeItem("zblogphp_article_" + decodeURIComponent(' . urlencode(GetVars('ID', 'POST')) . '));</script>';
-        RedirectByScript('cmd.php?act=ArticleMng');
+        Redirect_cmd_end_by_script('cmd.php?act=ArticleMng');
         break;
     case 'PageEdt':
-        Redirect('admin/edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'PageDel':
         CheckIsRefererValid();
@@ -116,10 +113,10 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=PageMng');
+        Redirect_cmd_end('cmd.php?act=PageMng');
         break;
     case 'PageMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'PagePst':
         $zbp->csrfExpiration = 48;
@@ -129,13 +126,13 @@ switch ($zbp->action) {
         $zbp->SaveCache();
         $zbp->SetHint('good');
         echo '<script>localStorage.removeItem("zblogphp_article_" + decodeURIComponent(' . urlencode(GetVars('ID', 'POST')) . '));</script>';
-        RedirectByScript('cmd.php?act=PageMng');
+        Redirect_cmd_end_by_script('cmd.php?act=PageMng');
         break;
     case 'CategoryMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'CategoryEdt':
-        Redirect('admin/category_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/category_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'CategoryPst':
         CheckIsRefererValid();
@@ -143,7 +140,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=CategoryMng');
+        Redirect_cmd_end('cmd.php?act=CategoryMng');
         break;
     case 'CategoryDel':
         CheckIsRefererValid();
@@ -151,7 +148,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=CategoryMng');
+        Redirect_cmd_end('cmd.php?act=CategoryMng');
         break;
     case 'CommentDel':
         CheckIsRefererValid();
@@ -159,7 +156,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect($_SERVER["HTTP_REFERER"]);
+        Redirect_cmd_end($_SERVER["HTTP_REFERER"]);
         break;
     case 'CommentChk':
         CheckIsRefererValid();
@@ -167,7 +164,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect($_SERVER["HTTP_REFERER"]);
+        Redirect_cmd_end($_SERVER["HTTP_REFERER"]);
         break;
     case 'CommentBat':
         CheckIsRefererValid();
@@ -175,19 +172,19 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect($_SERVER["HTTP_REFERER"]);
+        Redirect_cmd_end($_SERVER["HTTP_REFERER"]);
         break;
     case 'CommentMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'MemberMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'MemberEdt':
-        Redirect('admin/member_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/member_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'MemberNew':
-        Redirect('admin/member_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/member_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'MemberPst':
         CheckIsRefererValid();
@@ -200,10 +197,10 @@ switch ($zbp->action) {
             && !defined('ZBP_IN_AJAX')
             && !defined('ZBP_IN_API')
         ) {
-            Redirect($zbp->host . 'zb_system/cmd.php?act=login');
+            Redirect_cmd_end($zbp->host . 'zb_system/cmd.php?act=login');
         }
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=MemberMng');
+        Redirect_cmd_end('cmd.php?act=MemberMng');
         break;
     case 'MemberDel':
         CheckIsRefererValid();
@@ -214,28 +211,31 @@ switch ($zbp->action) {
         } else {
             $zbp->SetHint('bad');
         }
-            Redirect('cmd.php?act=MemberMng');
+        Redirect_cmd_end('cmd.php?act=MemberMng');
         break;
     case 'UploadMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'UploadPst':
         CheckIsRefererValid();
-        PostUpload();
-        $zbp->SetHint('good');
-        Redirect('cmd.php?act=UploadMng');
+        if (PostUpload()) {
+            $zbp->SetHint('good');
+        } else {
+            $zbp->SetHint('bad');
+        }
+        Redirect_cmd_end('cmd.php?act=UploadMng');
         break;
     case 'UploadDel':
         CheckIsRefererValid();
         DelUpload();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=UploadMng');
+        Redirect_cmd_end('cmd.php?act=UploadMng');
         break;
     case 'TagMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'TagEdt':
-        Redirect('admin/tag_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/tag_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'TagPst':
         CheckIsRefererValid();
@@ -243,7 +243,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=TagMng');
+        Redirect_cmd_end('cmd.php?act=TagMng');
         break;
     case 'TagDel':
         CheckIsRefererValid();
@@ -251,7 +251,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=TagMng');
+        Redirect_cmd_end('cmd.php?act=TagMng');
         break;
     case 'PluginMng':
         if (GetVars('install', 'GET')) {
@@ -259,7 +259,7 @@ switch ($zbp->action) {
             $zbp->BuildModule();
             $zbp->SaveCache();
         }
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'PluginDis':
         CheckIsRefererValid();
@@ -271,7 +271,7 @@ switch ($zbp->action) {
             $zbp->SaveCache();
             $zbp->SetHint('good');
         }
-        Redirect('cmd.php?act=PluginMng');
+        Redirect_cmd_end('cmd.php?act=PluginMng');
         break;
     case 'PluginEnb':
         CheckIsRefererValid();
@@ -280,7 +280,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=PluginMng' . $install);
+        Redirect_cmd_end('cmd.php?act=PluginMng' . $install);
         break;
     case 'ThemeMng':
         if (GetVars('install', 'GET')) {
@@ -289,7 +289,7 @@ switch ($zbp->action) {
         if (GetVars('install', 'GET') !== null) {
             $zbp->BuildTemplate();
         }
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'ThemeSet':
         CheckIsRefererValid();
@@ -298,7 +298,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=ThemeMng' . $install);
+        Redirect_cmd_end('cmd.php?act=ThemeMng' . $install);
         break;
     case 'SidebarSet':
         CheckIsRefererValid();
@@ -307,7 +307,7 @@ switch ($zbp->action) {
         $zbp->SaveCache();
         break;
     case 'ModuleEdt':
-        Redirect('admin/module_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/module_edit.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'ModulePst':
         CheckIsRefererValid();
@@ -315,7 +315,7 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=ModuleMng');
+        Redirect_cmd_end('cmd.php?act=ModuleMng');
         break;
     case 'ModuleDel':
         CheckIsRefererValid();
@@ -323,13 +323,13 @@ switch ($zbp->action) {
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=ModuleMng');
+        Redirect_cmd_end('cmd.php?act=ModuleMng');
         break;
     case 'ModuleMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'SettingMng':
-        Redirect('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
+        Redirect_cmd_end('admin/index.php?' . GetVars('QUERY_STRING', 'SERVER'));
         break;
     case 'SettingSav':
         CheckIsRefererValid();
@@ -340,24 +340,26 @@ switch ($zbp->action) {
         //判断及提前跳转
         if ($zbp->option['ZC_PERMANENT_DOMAIN_ENABLE'] == true) {
             if ($oldHost != $zbp->option['ZC_BLOG_HOST']) {
-                Redirect($zbp->option['ZC_BLOG_HOST'] . 'zb_system/cmd.php?act=login');
+                Redirect_cmd_end($zbp->option['ZC_BLOG_HOST'] . 'zb_system/cmd.php?act=login');
             }
         }
         $zbp->SetHint('good');
-        Redirect('cmd.php?act=SettingMng');
+        Redirect_cmd_end('cmd.php?act=SettingMng');
         break;
     case 'PostBat':
         BatchPost(GetVars('type', 'GET'));
         $zbp->BuildModule();
         $zbp->SaveCache();
         $zbp->SetHint('good');
-        Redirect($_SERVER["HTTP_REFERER"]);
+        Redirect_cmd_end($_SERVER["HTTP_REFERER"]);
         break;
     case 'misc':
         include './function/c_system_misc.php';
         ob_clean();
 
         $miscType = GetVars('type', 'GET');
+        $miscType = str_replace(array('<', '>', '&', ' ', '/', '"', "'"), '', $miscType);
+        $miscType = ($miscType === 'php' . 'info') ? 'php_zbp_info' : $miscType;
 
         foreach ($GLOBALS['hooks']['Filter_Plugin_Misc_Begin'] as $fpname => &$fpsignal) {
             $fpname($miscType);
@@ -377,6 +379,4 @@ switch ($zbp->action) {
         break;
 }
 
-foreach ($GLOBALS['hooks']['Filter_Plugin_Cmd_End'] as $fpname => &$fpsignal) {
-    $fpname();
-}
+HookFilterPlugin('Filter_Plugin_Cmd_End');

@@ -6,7 +6,7 @@ if (!defined('ZBP_PATH')) {
 /**
  * 获取链接内容类.
  */
-class Network__Filegetcontents implements Network__Interface
+class Network__filegetcontents implements Network__Interface
 {
 
     private $readyState = 0; //状态
@@ -29,6 +29,8 @@ class Network__Filegetcontents implements Network__Interface
 
     private $url = '';
 
+    private $getdata = array();
+
     private $postdata = array();
 
     private $httpheader = array();
@@ -44,6 +46,8 @@ class Network__Filegetcontents implements Network__Interface
     private $private_isBinary = false;
 
     private $private_boundary = '';
+
+    private $timeout = 30;
 
     /**
      * @param $property_name
@@ -127,6 +131,45 @@ class Network__Filegetcontents implements Network__Interface
     }
 
     /**
+     * 处理 querystring 到 url.
+     */
+    private function load_query_to_url()
+    {
+        $url = $this->url;
+
+        $this->parsed_url = parse_url($url);
+
+        $breforedata = array();
+        if (isset($this->parsed_url['query'])) {
+            parse_str($this->parsed_url['query'], $breforedata);
+        }
+
+        $newdata = array_merge($breforedata, $this->getdata);
+        $query_string = http_build_query($newdata);
+
+        $fragment = '';
+        if (stripos($url, '#') !== false) {
+            $url = SplitAndGet($url, '#');
+            $fragment = '#' . SplitAndGet($url, '#', 1);
+        }
+        $url = SplitAndGet($url, '?');
+        $url = $url . '?' . $query_string . $fragment;
+
+        $this->url = $url;
+    }
+
+    /**
+     * 新增查询.
+     *
+     * @param string $name
+     * @param string $entity
+     */
+    public function addQuery($name, $entity)
+    {
+        $this->getdata[$name] = $entity;
+    }
+
+    /**
      * @param $bstrMethod
      * @param $bstrUrl
      * @param bool   $varAsync
@@ -175,7 +218,9 @@ class Network__Filegetcontents implements Network__Interface
             $data = http_build_query($data);
         }
 
-        if ($this->option['method'] == 'POST') {
+        $this->load_query_to_url();
+
+        if ($this->option['method'] == 'POST' || $this->option['method'] == 'PUT') {
             if (is_array($varBody) && count($this->postdata) > 0) {
                 foreach ($varBody as $key => $value) {
                     $this->add_postdata($key, $value);
@@ -189,7 +234,7 @@ class Network__Filegetcontents implements Network__Interface
 
             if (!isset($this->httpheader['Content-Type'])) {
                 if ($this->private_isBinary) {
-                    $this->httpheader['Content-Type'] = 'Content-Type:  multipart/form-data; boundary=' . $this->private_boundary;
+                    $this->httpheader['Content-Type'] = 'Content-Type: multipart/form-data; boundary=' . $this->private_boundary;
                 } else {
                     $this->httpheader['Content-Type'] = 'Content-Type: application/x-www-form-urlencoded';
                 }
@@ -199,9 +244,15 @@ class Network__Filegetcontents implements Network__Interface
 
         $this->option['header'] = implode("\r\n", $this->httpheader);
         //$this->httpheader[] = 'Referer: ' . 'http://'.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+        $this->option['ignore_errors'] = true;
+        if (isset($this->option['timeout'])) {
+            $this->timeout = $this->option['timeout'];
+        } else {
+            $this->option['timeout'] = $this->timeout;
+        }
 
         if ($this->maxredirs > 0) {
-            $this->option['follow_location'] = true;
+            $this->option['follow_location'] = 1;
             //补一个数字 要大于1才跳转
             $this->option['max_redirects'] = ($this->maxredirs + 1);
         } else {
@@ -209,11 +260,18 @@ class Network__Filegetcontents implements Network__Interface
             $this->option['max_redirects'] = 0;
         }
 
-        ZBlogException::SuspendErrorHook();
+        if (defined('ZBP_PATH')) {
+            ZbpErrorControl::SuspendErrorHook();
+        }
         $http_response_header = null;
-        $this->responseText = file_get_contents(($this->isgzip == true ? 'compress.zlib://' : '') . $this->url, false, stream_context_create(array('http' => $this->option)));
+        $this->responseText = file_get_contents(($this->isgzip == true ? 'compress.zlib://' : '') . $this->url, false, stream_context_create(array('http' => $this->option, 'ssl' => array('verify_peer' => false,'verify_peer_name' => false))));
+        if (is_bool($this->responseText) && !$this->responseText) {
+            $this->responseText = '';
+        }
         $this->responseHeader = $http_response_header;
-        ZBlogException::ResumeErrorHook();
+        if (defined('ZBP_PATH')) {
+            ZbpErrorControl::ResumeErrorHook();
+        }
 
         if (!is_array($this->responseHeader)) {
             return;
@@ -314,11 +372,22 @@ class Network__Filegetcontents implements Network__Interface
      * @param string $name
      * @param string $entity
      *
-     * @return mixed
+     * @return void
      */
     public function addText($name, $entity)
     {
-        return $this->add_postdata($name, $entity);
+        $this->add_postdata($name, $entity);
+    }
+
+    /**
+     * @param string $name
+     * @param string $entity
+     *
+     * @return void
+     */
+    public function addFormParam($name, $entity)
+    {
+        $this->addText($name, $entity);
     }
 
     /**
@@ -373,7 +442,6 @@ class Network__Filegetcontents implements Network__Interface
 
     private function reinit()
     {
-        global $zbp;
         $this->readyState = 0; //状态
         $this->responseBody = null; //返回的二进制
         $this->responseStream = null; //返回的数据流
@@ -387,10 +455,17 @@ class Network__Filegetcontents implements Network__Interface
 
         $this->option = array();
         $this->url = '';
+        $this->getdata = array();
         $this->postdata = array();
         $this->httpheader = array();
         $this->responseHeader = array();
-        $this->setRequestHeader('User-Agent', 'Mozilla/5.0 (' . $zbp->cache->system_environment . ') Z-BlogPHP/' . $GLOBALS['blogversion']);
+
+        if (defined('ZBP_PATH')) {
+            $this->setRequestHeader('User-Agent', 'Mozilla/5.0 (' . $GLOBALS['zbp']->cache->system_environment . ') Z-BlogPHP/' . $GLOBALS['zbp']->version);
+        } else {
+            $this->setRequestHeader('User-Agent', 'Mozilla/5.0 (compatible; ZBP_NetWork)');
+        }
+
         $this->setMaxRedirs(1);
     }
 
@@ -410,6 +485,60 @@ class Network__Filegetcontents implements Network__Interface
     public function setMaxRedirs($n = 0)
     {
         $this->maxredirs = $n;
+    }
+
+    public function getStatusCode()
+    {
+        return $this->status;
+    }
+
+    public function getStatusText()
+    {
+        return $this->statusText;
+    }
+
+    public function getReasonPhrase()
+    {
+        return substr($this->statusText, 13);
+    }
+
+    public function withStatus($code, $reasonPhrase = '')
+    {
+    }
+
+    public function getBody()
+    {
+        return $this->responseText;
+    }
+
+    public function getHeaders()
+    {
+        $headers = array();
+        foreach ($this->responseHeader as $h) {
+            $array = explode(': ', $h, 2);
+            if (count($array) > 1) {
+                if (isset($headers[$array[0]]) == false) {
+                    $headers[$array[0]] = array();
+                }
+                $headers[$array[0]][] = $array[1];
+            }
+        }
+        return $headers;
+    }
+
+    public function getHeader($name)
+    {
+        $headers = $this->getHeaders();
+        if (isset($headers[$name])) {
+            return $headers[$name];
+        }
+        return array();
+    }
+
+    public function hasHeader($name)
+    {
+        $headers = $this->getHeaders();
+        return isset($headers[$name]);
     }
 
 }

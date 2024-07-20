@@ -20,7 +20,9 @@ class Database__PDO_SQLite implements Database__Interface
      */
     public $dbpre = null;
 
-    private $db = null; //数据库连接实例
+    protected $db = null; //数据库连接实例
+
+    private $isconnected = false; //是否已打开连接
 
     /**
      * @var string|null 数据库名
@@ -67,6 +69,9 @@ class Database__PDO_SQLite implements Database__Interface
      */
     public function Open($array)
     {
+        if ($this->isconnected) {
+            return true;
+        }
         //pdo_sqlite优先使用sqlite3
         $a = PDO::getAvailableDrivers();
         $dns = 'sqlite';
@@ -84,6 +89,7 @@ class Database__PDO_SQLite implements Database__Interface
         $this->version = SplitAndGet($myver, '-', 0);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT);
 
+        $this->isconnected = true;
         return true;
     }
 
@@ -92,7 +98,11 @@ class Database__PDO_SQLite implements Database__Interface
      */
     public function Close()
     {
+        if (!$this->isconnected) {
+            return;
+        }
         $this->db = null;
+        $this->isconnected = false;
     }
 
     /**
@@ -109,15 +119,18 @@ class Database__PDO_SQLite implements Database__Interface
 
     public function QueryMulti($s)
     {
+        $result = false;
         //$a=explode(';',str_replace('%pre%', $this->dbpre, $s));
         $a = explode(';', $s);
         foreach ($a as $s) {
             $s = trim($s);
             if ($s != '') {
-                $this->db->exec($this->sql->Filter($s));
+                $result = $this->db->exec($this->sql->Filter($s));
                 $this->LogsError();
             }
         }
+
+        return $result;
     }
 
     /**
@@ -181,6 +194,14 @@ class Database__PDO_SQLite implements Database__Interface
         $this->LogsError();
         return $this->db->lastInsertId();
     }
+    
+    /**
+     * @return int
+     */
+    public function GetInsertId()
+    {
+        return $this->db->lastInsertId();
+    }
 
     /**
      * @param $table
@@ -196,6 +217,7 @@ class Database__PDO_SQLite implements Database__Interface
      */
     public function DelTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $this->QueryMulit($this->sql->DelTable($table));
     }
 
@@ -206,6 +228,7 @@ class Database__PDO_SQLite implements Database__Interface
      */
     public function ExistTable($table)
     {
+        $table = str_replace('%pre%', $this->dbpre, $table);
         $a = $this->Query($this->sql->ExistTable($table, $this->dbname));
         if (!is_array($a)) {
             return false;
@@ -224,7 +247,7 @@ class Database__PDO_SQLite implements Database__Interface
         }
     }
 
-    private function LogsError()
+    protected function LogsError()
     {
         $e = trim($this->db->errorCode(), '0');
         if ($e != '') {
@@ -263,9 +286,9 @@ class Database__PDO_SQLite implements Database__Interface
     public function ExistColumn($table, $field)
     {
         $r = null;
-        ZBlogException::SuspendErrorHook();
+        ZbpErrorControl::SuspendErrorHook();
         $r = @$this->Query("PRAGMA table_info([$table])");
-        ZBlogException::ResumeErrorHook();
+        ZbpErrorControl::ResumeErrorHook();
         $r = serialize($r);
         if (stripos($r, '"' . $field . '"') !== false) {
             return true;

@@ -49,6 +49,21 @@ function api_post_get()
                 // 默认为公开状态的文章/页面
                 ApiCheckAuth(false, $post->TypeActions['view']);
             }
+
+            if (GetVars('viewnums') == true) {
+                if (isset($zbp->option['ZC_VIEWNUMS_TURNOFF']) && $zbp->option['ZC_VIEWNUMS_TURNOFF'] == false) {
+                    if (count($GLOBALS['hooks']['Filter_Plugin_ViewPost_ViewNums']) > 0) {
+                        foreach ($GLOBALS['hooks']['Filter_Plugin_ViewPost_ViewNums'] as $fpname => &$fpsignal) {
+                            $post->ViewNums = $fpname($post);
+                        }
+                    } else {
+                        $post->ViewNums += 1;
+                        $sql = $zbp->db->sql->Update($zbp->table['Post'], array('log_ViewNums' => $post->ViewNums), array(array('=', 'log_ID', $post->ID)));
+                        $zbp->db->Update($sql);
+                    }
+                }
+            }
+
             $array = ApiGetObjectArray(
                 $post,
                 array('Url','TagsCount','TagsName','CommentPostKey','ValidCodeUrl'),
@@ -142,10 +157,6 @@ function api_post_post()
             'message' => $GLOBALS['lang']['msg']['operation_failed'] . ' ' . $e->getMessage(),
         );
     }
-
-    return array(
-        'message' => $GLOBALS['lang']['msg']['operation_succeed'],
-    );
 }
 
 /**
@@ -225,7 +236,18 @@ function api_post_list()
     // 组织查询条件
     $where = array();
     if ($cateId > 0) {
-        $where[] = array('=', 'log_CateID', $cateId);
+        if (GetVars('with_subcate') == false) {
+            $where[] = array('=', 'log_CateID', $cateId);
+        } else {
+            $arysubcate = array();
+            $arysubcate[] = array('log_CateID', $cateId);
+            if (isset($zbp->categories[$cateId])) {
+                foreach ($zbp->categories[$cateId]->ChildrenCategories as $subcate) {
+                    $arysubcate[] = array('log_CateID', $subcate->ID);
+                }
+            }
+            $where[] = array('array', $arysubcate);
+        }
     }
     if ($tagId > 0) {
         $where[] = array('LIKE', 'log_Tag', '%{' . $tagId . '}%');
@@ -261,7 +283,7 @@ function api_post_list()
     } else {
         // 默认非管理模式
         ApiCheckAuth(false, $actions['view']);
-        $limitCount = $zbp->option['ZC_DISPLAY_COUNT'];
+        $limitCount = $zbp->option['ZC_API_DISPLAY_COUNT'];
         $where[] = array('=', 'log_Status', 0);
     }
 
@@ -276,12 +298,17 @@ function api_post_list()
             'ViewNums' => 'log_ViewNums'
         )
     );
+    $select = '';
     $order = $filter['order'];
     $limit = $filter['limit'];
     $option = $filter['option'];
 
+    foreach ($GLOBALS['hooks']['Filter_Plugin_API_Post_List_Core'] as $fpname => &$fpsignal) {
+        $fpreturn = $fpname($select, $where, $order, $limit, $option);
+    }
+
     $listArr = ApiGetObjectArrayList(
-        $zbp->GetPostList('*', $where, $order, $limit, $option),
+        $zbp->GetPostList($select, $where, $order, $limit, $option),
         array('Url', 'TagsCount', 'TagsName', 'CommentPostKey', 'ValidCodeUrl'),
         (GetVars('without_content') != 0) ? array('Content') : array(),
         ApiGetAndFilterRelationQuery(

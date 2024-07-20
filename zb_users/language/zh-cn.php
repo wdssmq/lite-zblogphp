@@ -223,7 +223,8 @@ return array(
         'admin_login'                       => '登录后台',
         'top_index'                         => '首页',
         'top_global'                        => '全局',
-        'top_category'                      => '分类',
+        'top_categorys'                     => '分类',
+        'top_category'                      => '本分类',
         'jump_comment'                      => '查看评论ID=',
         'year_suffix'                       => '年',
         'month_suffix'                      => '月',
@@ -251,7 +252,7 @@ return array(
         'comment_audit'                     => '审核评论',
         'comment_audit_comment'             => '打开后所有非管理员发布的评论都将进入审核状态',
         'debugging_warning'                 => '您的Z-BlogPHP打开了调试模式。此模式下网站有被黑的风险，实际部署在线上的网站请及时关闭调试模式！',
-        'permanent_domain_with_admin'       => '后台也使用固定域名',
+        'permanent_domain_is_enable'        => '固定域名功能已开启',
         'current_template'                  => '当前模板',
         'additional_security'               => '安全增强',
         'using_cdn_guest_type'              => '客户IP获取来源',
@@ -279,6 +280,13 @@ return array(
         'category_legacy_display'           => '分类管理按传统模式显示',
         'change_default_password'           => '请立即更改默认密码！',
         'delete_member_with_alldata'        => '删除用户同时删除其文章和评论',
+        'api_display_count'                 => 'API页显示文章的数量',
+        'enable_login_csrfcheck'            => '启用登录CSRF Token校验',
+        'enable_login_verify'               => '启用登录验证码功能',
+        'external_link_about_to_leave'      => '即将离开',
+        'external_link_info'                => '即将跳转到外部网站。我们不对该网站的安全性和内容负责，请注意您的账号和财产安全。',
+        'external_link_no_url_error'        => '您所访问的页面由于未知原因无法打开',
+        'external_link_continue'            => '继续访问',
         ''                                  => '',
     ),
 
@@ -511,7 +519,7 @@ return array(
         '63' => '禁止浏览草稿文章',
         '64' => '启用失败，该应用不适用于Z-BlogPHP。',
         '65' => 'Windows Phone用户请升级到Windows Phone 8.1后再上传文件。',
-        '66' => '用户名和密码不能为空',
+        '66' => '用户名，密码或验证码不能为空',
         '67' => 'MySQL数据库无法连接',
         '68' => 'SQLite数据库无法打开',
         '69' => '未查询到相关数据',
@@ -552,6 +560,9 @@ return array(
 
     'offical_urls' => array(
         'more_help' => 'https://www.zblogcn.com/help/?id={%id%}&message={%message%}',
+        'bing_help' => 'https://cn.bing.com/search?q={%message%}',
+        'office_docs' => 'https://docs.zblogcn.com/php/#/books/start-25-faq',
+        'office_bbs' => 'https://bbs.zblogcn.com/',
     ),
 
     // Possible causes of the error
@@ -609,8 +620,14 @@ return array(
         ),
 
         'end' => '
-            如果您是访客，这说明网站程序可能出现了一些错误。请您稍后再试，或联系站长。<br/>
-            如果您是站长，您可以点击<a href="{%morehelp%}" target="_blank">【更多信息】</a>来查看Z-Blog官方关于这个错误的说明，也可以到<a href="https://bbs.zblogcn.com/" target="_blank">Z-Blog官方论坛</a>，附上错误详细截图与描述寻求帮助。
+请复制上方错误信息到搜索引擎以获取关于该错误的说明，或点击<a href="{%morehelp%}" rel="nofollow" target="_blank">「使用必应搜索」。</a><br/><br/>
+
+如果您是访客，这说明网站程序可能出现了一些错误。请您稍后再试，或联系站长。<br/><br/>
+
+如果您是站长，可以<a href="{%officedocs%}" rel="nofollow" target="_blank">「点击这里」</a>查看 Z-Blog 官方对于【部分常见错误 】的说明,，以及<a href="{%officedocs%}" rel="nofollow" target="_blank">「通用排查指南」</a>。<br/>
+
+如果仍然无法解决，也可以到 <a href="{%officebbs%}" rel="nofollow" target="_blank">Z-Blog 官方论坛</a>，附上当前错误信息与描述寻求帮助。
+注：请将"当前错误信息"复制进标题或正文中。<br/>
         ',
     ),
 

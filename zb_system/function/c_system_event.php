@@ -1,4 +1,5 @@
 <?php
+
 /**
  * 事件操作相关函数.
  */
@@ -18,13 +19,29 @@ if (!defined('ZBP_PATH')) {
  *
  * @return bool
  */
-function VerifyLogin($throwException = true)
+function VerifyLogin($throwException = true, $ignoreValidCode = true, $ignoreCsrfCheck = true)
 {
     global $zbp;
+
+    if ($zbp->option['ZC_LOGIN_CSRFCHECK_ENABLE'] && $ignoreCsrfCheck == false) {
+        $zbp->csrfExpirationMinute = 5;
+        if ($zbp->VerifyCSRFToken(GetVars('csrfToken', 'POST'), 'login', 'minute') == false) {
+            $zbp->ShowError(5, __FILE__, __LINE__);
+        }
+    }
+
+    if ($zbp->option['ZC_LOGIN_VERIFY_ENABLE'] && $ignoreValidCode == false) {
+        $zbp->verifyCodeExpirationMinute = 5;
+        if ($zbp->CheckValidCode(GetVars('verify', 'POST'), 'login', 'minute') == false) {
+            $zbp->ShowError(38, __FILE__, __LINE__);
+        }
+    }
+
     /* @var Member $m */
     $m = null;
     if ($zbp->Verify_MD5(trim(GetVars('username', 'POST')), trim(GetVars('password', 'POST')), $m)) {
         $zbp->user = $m;
+        $zbp->islogin = true;
         $sd = (float) GetVars('savedate');
         $sd = ($sd < 1) ? 1 : $sd; // must >= 1 day
         $sdt = (time() + 3600 * 24 * $sd);
@@ -47,10 +64,10 @@ function VerifyLogin($throwException = true)
 
         if ($throwException) {
             $zbp->ShowError(8, __FILE__, __LINE__);
-        } else {
-            return false;
         }
     }
+
+    return false;
 }
 
 /**
@@ -72,9 +89,9 @@ function SetLoginCookie($user, $cookieTime)
     $addinfo['useralias'] = $user->StaticName;
     $token = $zbp->GenerateUserToken($user, $cookieTime);
     $secure = HTTP_SCHEME == 'https://';
-    setcookie('username_' . hash("crc32b", $zbp->guid), $user->Name, $cookieTime, $zbp->cookiespath, '', $secure, false);
-    setcookie('token_' . hash("crc32b", $zbp->guid), $token, $cookieTime, $zbp->cookiespath, '', $secure, $zbp->cookie_tooken_httponly);
-    setcookie('addinfo' . str_replace('/', '', $zbp->cookiespath), json_encode($addinfo), $cookieTime, $zbp->cookiespath, '', $secure, false);
+    setcookie('username_' . hash("crc32b", $zbp->guid), $user->Name, $cookieTime, $zbp->cookiespath, $zbp->cookie_domain, $secure, $zbp->cookie_httponly);
+    setcookie('token_' . hash("crc32b", $zbp->guid), $token, $cookieTime, $zbp->cookiespath, $zbp->cookie_domain, $secure, $zbp->cookie_httponly);
+    setcookie('addinfo' . str_replace('/', '', $zbp->cookiespath), json_encode($addinfo), $cookieTime, $zbp->cookiespath, $zbp->cookie_domain, $secure, false);
 
     return true;
 }
@@ -100,15 +117,20 @@ function Logout()
 
 function Redirect_to_search()
 {
-    global $zbp;
-    //$q = rawurlencode(trim(strip_tags(GetVars('q', 'POST'))));
-    //Redirect($zbp->searchurl . '?q=' . $q);
+    Redirect_cmd_to_search(0);
+}
 
-    $route = $zbp->GetPostType_Sub(0, 'routes', 'post_article_search');
+function Redirect_cmd_to_search($post_type = 0)
+{
+    global $zbp, $action;
+    //$q = rawurlencode(trim(strip_tags(GetVars('q', 'POST'))));
+    //Redirect302($zbp->searchurl . '?q=' . $q);
+
+    $route = $zbp->GetPostType_Sub($post_type, 'routes', 'post_article_search');
     if (!empty($route)) {
         $r = new UrlRule($zbp->GetRoute($route));
     } else {
-        $urlrule = $zbp->GetPostType(0, 'search_urlrule');
+        $urlrule = $zbp->GetPostType($post_type, 'search_urlrule');
         $r = new UrlRule($urlrule);
     }
 
@@ -116,13 +138,22 @@ function Redirect_to_search()
     $r->Rules['{%page%}'] = '';
     $r->Rules['{%q%}'] = $q;
     $r->Rules['{%search%}'] = $q;
+    $r->Rules['{%posttype%}'] = $post_type;
 
     $url = $r->Make();
 
-    Redirect($url);
+    Redirect_cmd_end($url);
 }
 
 function Redirect_to_inside($url)
+{
+    Redirect_cmd_from_args_with_loggedin($url);
+}
+
+/**
+ * 检查已登录后才跳转到内部页面的CMD页面跳转函数
+ */
+function Redirect_cmd_from_args_with_loggedin($url)
 {
     global $zbp;
     if (empty($zbp->user->ID)) {
@@ -133,9 +164,41 @@ function Redirect_to_inside($url)
     }
     $a = parse_url($url);
     $b = parse_url($zbp->host);
-    if (isset($a['host']) && isset($b['host']) && strtolower($a['host']) == strtolower($b['host'])) {
-        Redirect($url);
+    if (isset($a['host']) && isset($b['host']) && strcasecmp($a['host'], $b['host']) == 0) {
+        Redirect_cmd_end($url);
     }
+}
+
+/**
+ * CMD页面结束前的跳转函数.
+ *
+ * @api Filter_Plugin_Cmd_Redirect
+ */
+function Redirect_cmd_end($url)
+{
+    global $zbp, $action;
+
+    foreach ($GLOBALS['hooks']['Filter_Plugin_Cmd_Redirect'] as $fpname => &$fpsignal) {
+        $fpname($url, $action);
+    }
+
+    Redirect302($url);
+}
+
+/**
+ * CMD页面结束前的跳转函数Script版本.
+ *
+ * @api Filter_Plugin_Cmd_Redirect
+ */
+function Redirect_cmd_end_by_script($url)
+{
+    global $zbp, $action;
+
+    foreach ($GLOBALS['hooks']['Filter_Plugin_Cmd_Redirect'] as $fpname => &$fpsignal) {
+        $fpname($url, $action);
+    }
+
+    RedirectByScript($url);
 }
 
 //###############################################################################################################
@@ -148,7 +211,7 @@ function Redirect_to_inside($url)
  *
  * @throws Exception
  *
- * @return Post
+ * @return Post|false
  */
 function PostPost()
 {
@@ -231,11 +294,12 @@ function PostPost()
 
     FilterPost($post);
 
-    $post->Save();
-
     if ($zbp->option['ZC_LARGE_DATA'] == false) {
-        CountPostArray(array($post->ID));
+        //CountPostArray(array($post->ID));
+        CountPost($post, null);
     }
+
+    $post->Save();
 
     $zbp->AddBuildModule('comments');
 
@@ -279,7 +343,7 @@ function DelPost()
         if (!$zbp->CheckRights($post->TypeActions['all']) && $post->AuthorID != $zbp->user->ID) {
             $zbp->ShowError(6, __FILE__, __LINE__);
         }
-        
+
         foreach ($GLOBALS['hooks']['Filter_Plugin_DelPost_Core'] as $fpname => &$fpsignal) {
             $fpname($post);
         }
@@ -306,7 +370,7 @@ function DelPost()
  *
  * @throws Exception
  *
- * @return Post
+ * @return Post|false
  */
 function PostArticle()
 {
@@ -447,6 +511,11 @@ function PostArticle()
 
     FilterPost($article);
 
+    if ($zbp->option['ZC_LARGE_DATA'] == false) {
+        //CountPostArray(array($post->ID));
+        CountPost($article, null);
+    }
+
     $article->Save();
     $zbp->AddCache($article);
 
@@ -484,9 +553,6 @@ function PostArticle()
 
         CountCategoryArray(array($article->CateID), +1);
     }
-    if ($zbp->option['ZC_LARGE_DATA'] == false) {
-        CountPostArray(array($article->ID));
-    }
     if ($orig_id == 0 && $article->IsTop == 0 && $article->Status == ZC_POST_STATUS_PUBLIC) {
         CountNormalArticleNums(+1);
     } elseif ($orig_id > 0) {
@@ -506,9 +572,9 @@ function PostArticle()
     $zbp->AddBuildModule('previous');
     $zbp->AddBuildModule('calendar');
     $zbp->AddBuildModule('comments');
-    $zbp->AddBuildModule('archives');
     $zbp->AddBuildModule('tags');
     $zbp->AddBuildModule('authors');
+    $zbp->AddBuildModule('archives');
 
     foreach ($GLOBALS['hooks']['Filter_Plugin_PostArticle_Succeed'] as $fpname => &$fpsignal) {
         $fpname($article);
@@ -563,9 +629,9 @@ function DelArticle()
         $zbp->AddBuildModule('previous');
         $zbp->AddBuildModule('calendar');
         $zbp->AddBuildModule('comments');
-        $zbp->AddBuildModule('archives');
         $zbp->AddBuildModule('tags');
         $zbp->AddBuildModule('authors');
+        $zbp->AddBuildModule('archives');
 
         foreach ($GLOBALS['hooks']['Filter_Plugin_DelArticle_Succeed'] as $fpname => &$fpsignal) {
             $fpname($article);
@@ -669,7 +735,7 @@ function DelArticle_Comments($id)
  *
  * @throws Exception
  *
- * @return Article
+ * @return Post|false
  */
 function PostPage()
 {
@@ -743,6 +809,11 @@ function PostPage()
 
     FilterPost($article);
 
+    if ($zbp->option['ZC_LARGE_DATA'] == false) {
+        //CountPostArray(array($post->ID));
+        CountPost($article, null);
+    }
+
     $article->Save();
 
     if ($pre_author != $article->AuthorID) {
@@ -751,9 +822,6 @@ function PostPage()
         }
 
         CountMemberArray(array($article->AuthorID), array(0, +1, 0, 0));
-    }
-    if ($zbp->option['ZC_LARGE_DATA'] == false) {
-        CountPostArray(array($article->ID));
     }
 
     $zbp->AddBuildModule('comments');
@@ -835,7 +903,7 @@ function BatchPost($type)
  *
  * @throws Exception
  *
- * @return Comment
+ * @return Comment|false
  */
 function PostComment()
 {
@@ -855,10 +923,20 @@ function PostComment()
         'AuthorID' => null,
     );
 
-    $_POST['LogID'] = $_GET['postid'];
+    if (isset($_GET['postid'])) {
+        $_POST['LogID'] = $_GET['postid'];
+    } elseif (isset($_POST['postid'])) {
+        $_POST['LogID'] = $_POST['postid'];
+    } elseif (!isset($_POST['LogID'])) {
+        $_POST['LogID'] = 0;
+    }
 
-    if ($zbp->ValidCmtKey($_GET['postid'], $_GET['key']) == false) {
-        if (isset($zbp->option['ZC_COMMENT_VALIDCMTKEY_ENABLE']) && $zbp->option['ZC_COMMENT_VALIDCMTKEY_ENABLE']) {
+    if ($zbp->option['ZC_COMMENT_TURNOFF']) {
+        $zbp->ShowError(40, __FILE__, __LINE__);
+    }
+
+    if ($zbp->option['ZC_COMMENT_VALIDCMTKEY_ENABLE']) {
+        if ($zbp->ValidCmtKey($_POST['LogID'], $_GET['key']) == false) {
             $zbp->ShowError(43, __FILE__, __LINE__);
         }
     }
@@ -925,6 +1003,14 @@ function PostComment()
         if (isset($_POST[$key])) {
             $cmt->$key = GetVars($key, 'POST');
         }
+    }
+
+    //判断文章表里ID是否存在
+    $post = $zbp->GetPostByID($cmt->LogID);
+    if (empty($post->ID)) {
+        $zbp->ShowError(2, __FILE__, __LINE__);
+
+        return false;
     }
 
     if ($zbp->option['ZC_COMMENT_AUDIT'] && !$zbp->CheckRights('root')) {
@@ -996,6 +1082,13 @@ function DelComment()
 
     $id = (int) GetVars('id', 'GET');
     $cmt = $zbp->GetCommentByID($id);
+
+    if ($zbp->CheckRights('CommentAll') == false) {
+        if ($cmt->AuthorID != $zbp->user->ID && $cmt->Post->AuthorID != $zbp->user->ID) {
+            return false;
+        }
+    }
+
     if ($cmt->ID > 0) {
         $comments = $zbp->GetCommentList('*', array(array('=', 'comm_LogID', $cmt->LogID)), null, null, null);
 
@@ -1085,6 +1178,12 @@ function CheckComment()
     if ($cmt->ID == 0) {
         return $cmt;
     }
+    if ($zbp->CheckRights('CommentAll') == false) {
+        if ($cmt->AuthorID != $zbp->user->ID && $cmt->Post->AuthorID != $zbp->user->ID) {
+            return $cmt;
+        }
+    }
+
     $orig_check = (bool) $cmt->IsChecking;
     $cmt->IsChecking = $ischecking;
 
@@ -1171,6 +1270,12 @@ function BatchComment()
 
     if ($type == 'all_del') {
         foreach ($childArray as $i => $cmt) {
+            if ($zbp->CheckRights('CommentAll') == false) {
+                if ($cmt->AuthorID != $zbp->user->ID && $cmt->Post->AuthorID != $zbp->user->ID) {
+                    continue;
+                }
+            }
+
             $cmt->Del();
             if (!$cmt->IsChecking) {
                 CountPostArray(array($cmt->LogID), -1);
@@ -1188,6 +1293,11 @@ function BatchComment()
             if (!$cmt->IsChecking) {
                 continue;
             }
+            if ($zbp->CheckRights('CommentAll') == false) {
+                if ($cmt->AuthorID != $zbp->user->ID && $cmt->Post->AuthorID != $zbp->user->ID) {
+                    continue;
+                }
+            }
 
             $cmt->IsChecking = false;
             $cmt->Save();
@@ -1202,6 +1312,11 @@ function BatchComment()
         foreach ($childArray as $i => $cmt) {
             if ($cmt->IsChecking) {
                 continue;
+            }
+            if ($zbp->CheckRights('CommentAll') == false) {
+                if ($cmt->AuthorID != $zbp->user->ID && $cmt->Post->AuthorID != $zbp->user->ID) {
+                    continue;
+                }
             }
 
             $cmt->IsChecking = true;
@@ -1223,7 +1338,7 @@ function BatchComment()
 /**
  * 提交分类数据.
  *
- * @return Category
+ * @return Category|false
  */
 function PostCategory()
 {
@@ -1272,6 +1387,8 @@ function PostCategory()
 
     FilterMeta($cate);
 
+    $cate->UpdateTime = time();
+
     //刷新RootID
     $cate->Level;
 
@@ -1282,8 +1399,10 @@ function PostCategory()
     FilterCategory($cate);
 
     // 此处用作刷新分类内文章数据使用，不作更改
-    if ($cate->ID > 0) {
-        CountCategory($cate, null, $cate->Type);
+    if ($zbp->option['ZC_LARGE_DATA'] == false) {
+        if ($cate->ID > 0) {
+            CountCategory($cate, null, $cate->Type);
+        }
     }
 
     $cate->Save();
@@ -1364,7 +1483,7 @@ function DelCategory_Articles($id)
 /**
  * 提交标签数据.
  *
- * @return Tag
+ * @return Tag|false
  */
 function PostTag()
 {
@@ -1410,6 +1529,8 @@ function PostTag()
     }
 
     FilterTag($tag);
+
+    $tag->UpdateTime = time();
 
     if ($zbp->option['ZC_LARGE_DATA'] == false) {
         CountTag($tag);
@@ -1478,7 +1599,7 @@ function DelTag()
  *
  * @throws Exception
  *
- * @return Member
+ * @return Member|false
  */
 function PostMember()
 {
@@ -1506,8 +1627,6 @@ function PostMember()
     // 如果是管理员，则再允许改动别的字段
     if ($zbp->CheckRights('MemberAll')) {
         array_push($editableField, 'Level', 'Status', 'Name', 'IP');
-    } else {
-        $data['ID'] = $zbp->user->ID;
     }
     // 复制一个新数组
     foreach ($editableField as $value) {
@@ -1529,6 +1648,7 @@ function PostMember()
     }
 
     if ($data['ID'] == 0) {
+        //新建用户必须提供密码
         if (!isset($data['Password']) || $data['Password'] == '') {
             $zbp->ShowError(73, __FILE__, __LINE__);
         }
@@ -1536,6 +1656,7 @@ function PostMember()
         if ($mem->Guid == '') {
             $mem->Guid = GetGuid();
         }
+        //检查新建用户权限
         if (!$zbp->CheckRights('MemberNew')) {
             $zbp->ShowError(6, __FILE__, __LINE__);
         }
@@ -1544,10 +1665,11 @@ function PostMember()
         if ($mem->ID == 0) {
             $zbp->ShowError(69, __FILE__, __LINE__);
         }
+        //检查编辑用户权限
         if (!$zbp->CheckRights('MemberEdt')) {
             $zbp->ShowError(6, __FILE__, __LINE__);
         }
-        //检查是编辑还是编辑他人
+        //检查编辑他人(MemberAll)
         if ($mem->ID <> $zbp->user->ID) {
             if (!$zbp->CheckRights('MemberAll')) {
                 $zbp->ShowError(6, __FILE__, __LINE__);
@@ -1555,14 +1677,22 @@ function PostMember()
         }
     }
 
+    if ($mem->IsGod == true) {
+        if ($zbp->user->IsGod == false) {
+            unset($data['Password']);
+            unset($data['Name']);
+            unset($data['Email']);
+            unset($data['Alias']);
+            unset($data['Status']);
+            unset($data['Intro']);
+            unset($data['HomePage']);
+        }
+        unset($data['Level']);
+    }
+
     foreach ($zbp->datainfo['Member'] as $key => $value) {
         if ($key == 'ID' || $key == 'Meta') {
             continue;
-        }
-        if ($mem->IsGod) {
-            if ($key == 'Level') {
-                continue;
-            }
         }
         if (isset($data[$key])) {
             $mem->$key = $data[$key];
@@ -1592,7 +1722,11 @@ function PostMember()
 
     FilterMember($mem);
 
-    CountMember($mem, array(null, null, null, null));
+    $mem->UpdateTime = time();
+
+    if ($zbp->option['ZC_LARGE_DATA'] == false) {
+        CountMember($mem, array(null, null, null, null));
+    }
 
     // 查询同名
     if (isset($data['Name'])) {
@@ -1695,7 +1829,7 @@ function DelMember_AllData($id)
 /**
  * 提交模块数据.
  *
- * @return Module
+ * @return Module|false
  */
 function PostModule()
 {
@@ -1739,11 +1873,11 @@ function PostModule()
     if (!isset($_POST['Type'])) {
         $_POST['Type'] = 'div';
     }
-    if (isset($_POST['Content'])) {
-        if ($_POST['Type'] != 'div') {
-            $_POST['Content'] = str_replace(array("\r", "\n"), array('', ''), $_POST['Content']);
-        }
-    }
+    // if (isset($_POST['Content'])) {
+    //     if ($_POST['Type'] != 'div') {
+    //         // div不再过滤\r和\n//$_POST['Content'] = str_replace(array("\r", "\n"), array('', ''), $_POST['Content']);
+    //     }
+    // }
 
     /* @var Module $mod */
     $mod = $zbp->GetModuleByID(GetVars('ID', 'POST'));
@@ -1838,7 +1972,7 @@ function DelModule()
  * 附件上传.
  *
  * @throws Exception
- * @return Upload
+ * @return Upload|false
  */
 function PostUpload()
 {
@@ -1892,13 +2026,15 @@ function PostUpload()
     }
     if (isset($upload)) {
         CountMemberArray(array($upload->AuthorID), array(0, 0, 0, +1));
+
+        foreach ($GLOBALS['hooks']['Filter_Plugin_PostUpload_Succeed'] as $fpname => &$fpsignal) {
+            $fpname($upload);
+        }
+
+        return $upload;
     }
 
-    foreach ($GLOBALS['hooks']['Filter_Plugin_PostUpload_Succeed'] as $fpname => &$fpsignal) {
-        $fpname($upload);
-    }
-
-    return $upload;
+    return false;
 }
 
 /**
@@ -1942,8 +2078,12 @@ function EnablePlugin($name)
     global $zbp;
 
     $app = $zbp->LoadApp('plugin', $name);
-    $app->CheckCompatibility_Global('Enable');
-    $app->CheckCompatibility();
+    if (($result = $app->CheckCompatibility_Global('Enable')) !== true) {
+        $zbp->ShowError($result->getMessage(), __FILE__, __LINE__);
+    }
+    if (($result = $app->CheckCompatibility()) !== true) {
+        $zbp->ShowError($result->getMessage(), __FILE__, __LINE__);
+    }
 
     $zbp->option['ZC_USING_PLUGIN_LIST'] = AddNameInString($zbp->option['ZC_USING_PLUGIN_LIST'], $name);
 
@@ -1974,7 +2114,9 @@ function DisablePlugin($name)
     global $zbp;
 
     $app = $zbp->LoadApp('plugin', $name);
-    $app->CheckCompatibility_Global('Disable');
+    if (($result = $app->CheckCompatibility_Global('Disable')) !== true) {
+        $zbp->ShowError($result->getMessage(), __FILE__, __LINE__);
+    }
 
     UninstallPlugin($name);
     $zbp->option['ZC_USING_PLUGIN_LIST'] = DelNameInString($zbp->option['ZC_USING_PLUGIN_LIST'], $name);
@@ -2009,13 +2151,20 @@ function SetTheme($theme, $style)
     global $zbp;
 
     $app = $zbp->LoadApp('theme', $theme);
-    $app->CheckCompatibility_Global('Enable');
-    $app->CheckCompatibility();
+    if (($result = $app->CheckCompatibility_Global('Enable')) !== true) {
+        $zbp->ShowError($result->getMessage(), __FILE__, __LINE__);
+    }
+
+    if (($result = $app->CheckCompatibility()) !== true) {
+        $zbp->ShowError($result->getMessage(), __FILE__, __LINE__);
+    }
 
     $oldTheme = $zbp->option['ZC_BLOG_THEME'];
     $old = $zbp->LoadApp('theme', $oldTheme);
     if ($theme != $oldTheme) {
-        $old->CheckCompatibility_Global('Disable');
+        if (($result = $old->CheckCompatibility_Global('Disable')) !== true) {
+            $zbp->ShowError($result->getMessage(), __FILE__, __LINE__);
+        }
     }
 
     if ($theme != $oldTheme && $old->isloaded == true) {
@@ -2072,8 +2221,8 @@ function SetSidebar()
 {
     global $zbp;
     for ($i = 1; $i <= 9; $i++) {
-        $optionName = $i === 1 ? 'ZC_SIDEBAR_ORDER' : "ZC_SIDEBAR${i}_ORDER";
-        $formName = $i === 1 ? 'sidebar' : "sidebar${i}";
+        $optionName = $i === 1 ? 'ZC_SIDEBAR_ORDER' : "ZC_SIDEBAR{$i}_ORDER";
+        $formName = $i === 1 ? 'sidebar' : "sidebar{$i}";
         if (isset($_POST[$formName])) {
             $zbp->option[$optionName] = trim(GetVars($formName, 'POST'), '|');
         }
@@ -2101,12 +2250,14 @@ function SaveSetting()
             || $key == 'ZC_COMMENT_REVERSE_ORDER'
             || $key == 'ZC_COMMENT_AUDIT'
             || $key == 'ZC_DISPLAY_SUBCATEGORYS'
-            || $key == 'ZC_GZIP_ENABLE'
             || $key == 'ZC_SYNTAXHIGHLIGHTER_ENABLE'
             || $key == 'ZC_COMMENT_VERIFY_ENABLE'
             || $key == 'ZC_CLOSE_SITE'
             || $key == 'ZC_ADDITIONAL_SECURITY'
             || $key == 'ZC_ARTICLE_THUMB_SWITCH'
+            || $key == 'ZC_API_THROTTLE_ENABLE'
+            || $key == 'ZC_API_ENABLE'
+            || $key == 'ZC_LOGIN_VERIFY_ENABLE'
         ) {
             $zbp->option[$key] = (bool) $value;
             continue;
@@ -2121,6 +2272,8 @@ function SaveSetting()
             || $key == 'ZC_ARTICLE_THUMB_TYPE'
             || $key == 'ZC_ARTICLE_THUMB_WIDTH'
             || $key == 'ZC_ARTICLE_THUMB_HEIGHT'
+            || $key == 'ZC_API_DISPLAY_COUNT'
+            || $key == 'ZC_API_THROTTLE_MAX_REQS_PER_MIN'
         ) {
             $zbp->option[$key] = (int) $value;
             continue;
@@ -2131,7 +2284,9 @@ function SaveSetting()
             $value = DelNameInString($value, 'php');
             $value = DelNameInString($value, 'asp');
         }
-        $zbp->option[$key] = trim(str_replace(array("\r", "\n"), array("", ""), $value));
+        //$zbp->option[$key] = trim(str_replace(array("\r", "\n"), array("", ""), $value));
+        //这里不拿掉\r和\n了
+        $zbp->option[$key] = $value;
     }
     $zbp->option['ZC_DEBUG_MODE'] = (bool) $zbp->option['ZC_DEBUG_MODE'];
 
