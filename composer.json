@@ -1,7 +1,8 @@
 {
     "require-dev": {
-        "squizlabs/php_codesniffer": "*",
-        "dealerdirect/phpcodesniffer-composer-installer": "*"
+        "dealerdirect/phpcodesniffer-composer-installer": "*",
+        "phpcompatibility/php-compatibility": "*",
+        "squizlabs/php_codesniffer": "*"
     },
     "config": {
         "allow-plugins": {
